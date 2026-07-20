@@ -21,9 +21,17 @@ Status: 🔵 in progress · 🔴 not started · 🟢 done everywhere
 
 ## Worth porting from world-cup-viewer
 
-- 🔵 **Auto-updating `webcal://` calendar subscription** (Netlify function serving a live
+- 🟢 **Auto-updating `webcal://` calendar subscription** (Netlify function serving a live
   `.ics`, vs our static one-time download). Best value-to-effort in the repo; self-contained.
-  **QUEUED — resume here → NFL first, then WNBA + Premier League.** Nothing is committed yet.
+  **DONE (2026-07-20) in NFL, WNBA, and Premier League** — each has `netlify/functions/
+  calendar.mjs` (v2 default export, best-effort live overlay, `?teams=` filter, 30-min
+  cache), `netlify.toml` `/calendar.ics` redirect above the SPA catch-all, `webcalUrl` +
+  `googleCalendarUrl` in `utils/ics.js`, and a `CalendarModal` with Subscribe/Google/Copy
+  rows. NFL and Premier League stayed at 100% coverage. NFL and WNBA replaced the "📅
+  Export" chip with a "📅 Calendar" chip; Premier League's existing download modal gained a
+  Subscribe section. All local — not yet committed/pushed. Caveat: the feed only resolves
+  once each site's Netlify build is live (WNBA's Netlify deploy is gated on
+  `NETLIFY_AUTH_TOKEN`). GitHub Pages still ships the static download only.
   Reference implementation: `world-cup-viewer/netlify/functions/calendar.js` +
   `src/components/CalendarModal.jsx` + `src/utils/ics.js` (`webcalUrl`, `googleCalendarUrl`).
   Per-app plan:
@@ -60,7 +68,10 @@ Status: 🔵 in progress · 🔴 not started · 🟢 done everywhere
 
 - 🔴 **Schedule-drift auto-fix PR** — siblings' `check-schedule` only validates; world-cup
   opens a ready-to-merge correction PR (`.github/workflows/schedule-check.yml`).
-- 🔴 **`node-guard` workflow** (fails on deprecated-Node actions) — cheap family-wide hygiene.
+- 🟢 **`node-guard` workflow** (fails on deprecated-Node actions) — cheap family-wide hygiene.
+  Now a shared reusable workflow at `ismayc/gha-guards` (`node-deprecation.yml`); all four
+  viewer apps call it via `.github/workflows/node-guard.yml`. sports-viewer-meta has no CI
+  yet, so it's not wired.
 - 🔴 **apple-touch-icon** — NFL and Premier League are missing it (WNBA has it).
 
 ## Reverse-port (WNBA → others)
