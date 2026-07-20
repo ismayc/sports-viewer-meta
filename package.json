@@ -1,0 +1,13 @@
+{
+  "name": "sports-viewer-meta",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared framework and playbook behind the world-cup, premier-league, and WNBA schedule viewers.",
+  "author": "Chester Ismay",
+  "license": "MIT",
+  "scripts": {
+    "smoke": "node test/smoke.mjs",
+    "gen:adapter": "node scripts/gen-adapter.mjs"
+  }
+}
