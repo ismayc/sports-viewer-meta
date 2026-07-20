@@ -99,6 +99,15 @@ EPL   points      fetched=380  played=0    ✅ 380 === teams × (teams−1)
   `alerts`, `follow`, `useModalA11y`, `TeamLogo`
 - `docs/PLAYBOOK.md`, `README.md`, `CLAUDE.md`
 
+## Per-app ship checklist — every viewer, incl. NBA next
+
+Established building `the-nfl-schedule` (the first framework consumer); apply to every app:
+
+- [ ] **100% test coverage, enforced.** Set `coverage: { all: true, thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 } }` in `vite.config.js` so a gap fails CI — not just a badge (PLAYBOOK §8). `premier-league` is the exemplar (~270 tests); `the-wnba-schedule` is the render-test pattern to copy (`test/*.test.jsx` + real-data fixtures + a completed-postseason bracket fixture).
+- [ ] **Full README with badges**, matching `the-wnba-schedule/README.md`: CI + coverage + License shields, live links, a **Views table**, Data/feed-quirks, Testing approach, and Deploy sections.
+- [ ] **A social share image** (`public/og-image.png`, 1200×630) with `og:image`/`twitter:image` at an absolute canonical URL — authored as on-brand HTML and rendered to PNG (see `the-nfl-schedule/scripts/og-image.html` + `make-og-image.md`). Not optional.
+- [ ] Don't reference the private `sports-viewer-meta` repo from any public app README/docs.
+
 ## Next, roughly in order
 
 1. **Lift locale and week-start out of `core/utils/time.js`.** It is a verbatim WNBA copy
