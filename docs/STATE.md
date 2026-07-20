@@ -4,34 +4,40 @@ Where the extraction stands, what is known to be wrong, and what to do next.
 
 ---
 
-## Known wrong — fix these first
+## Fixed 2026-07-20 — the adapters and the generator
 
-**The generated adapters have placeholder values that are incorrect.**
-`scripts/gen-adapter.mjs` writes `standingsModel: 'winloss'` as a scaffold default and
-marks it `// TODO review`. `validateAdapter()` does *not* catch it, because `winloss` is
-structurally valid — it is just the wrong answer for two of the three leagues.
+**Was:** the three generated adapters carried scaffold placeholders
+(`standingsModel: 'winloss'`, `timeAxis: 'date'`, `postseason: 'none'`, `approxGames: N*0`)
+that were structurally valid — so `validateAdapter()` passed them — but wrong for two of
+the three leagues.
 
-| File | Field | Currently | Should be |
-|---|---|---|---|
-| `adapters/nfl.js` | `standingsModel` | `winloss` | **`winlosstie`** |
-| `adapters/nfl.js` | `timeAxis` | `date` | **`week`** |
-| `adapters/nfl.js` | `postseason` | `none` | **`single`** |
-| `adapters/nfl.js` | `approxGames` | `32 * 0` | **272** |
-| `adapters/epl.js` | `standingsModel` | `winloss` | **`points`** |
-| `adapters/epl.js` | `tiebreakers` | default | **`['goalDiff','goalsFor']`** — the PL has *never* used head-to-head |
-| `adapters/epl.js` | `scoringFrequency` | `high` | **`low`** |
-| `adapters/epl.js` | `approxGames` | `20 * 0` | **380** |
-| `adapters/epl.js` | `seasonStrategy` | absent | **`calendar-walk`** (see below) |
-| `adapters/nba.js` | `postseason` | `none` | **`series`** + `seriesLength` |
-| `adapters/nba.js` | `approxGames` | `30 * 0` | **1230** |
-| all | `groups` | key→key | human labels (`E` → `Eastern Conference`) |
+All three adapters are now corrected by hand and load-and-validate clean:
 
-`adapters/epl.js` also has one "group" (`2026-2027`) because soccer's standings tree nests
-by season, not conference. EPL should be `groupBy: 'none'`.
+- `adapters/nfl.js` — `winlosstie`, `timeAxis: 'week'`, `postseason: 'single'`,
+  `closeMargin: 8`, `approxGames: 272`, conferences given full names.
+- `adapters/epl.js` — `points` + `tiebreakers: ['goalDiff','goalsFor']` (the PL has
+  *never* used head-to-head), `scoringFrequency: 'low'`, `closeMargin: 1`,
+  `approxGames: 380`, `seasonStrategy: 'calendar-walk'`, `groupBy: 'none'` (the bogus
+  `2026-2027` pseudo-group is gone), plus soccer vocabulary (match / half / 2 / `v`).
+- `adapters/nba.js` — `postseason: 'series'` + `seriesLength`, `playoffSpots: 16`,
+  `approxGames: 1230`, conferences given full names.
 
-**Worth fixing in the generator, not just the files** — otherwise the next league repeats
-it. Options: make the TODO fields `null` so `validateAdapter` rejects them, or infer
-defaults from `espnPath` (`soccer/*` → points + calendar-walk + low frequency).
+**Fixed at the source too**, so the next league starts correct rather than correct-looking:
+
+- `adapters/schema.js` now defines `seasonStrategy` (`team-schedule` | `calendar-walk`),
+  validates it, and defaults it to `team-schedule`.
+- `scripts/gen-adapter.mjs` infers a **sport profile** from `espnPath`
+  (`soccer/*` → points + calendar-walk + low + soccer vocab + `groupBy: 'none'`;
+  `football/nfl` → winlosstie + week + single; `basketball/*` → winloss + series). Group
+  labels now come from the standings node's full `name` (`East` → `Eastern Conference`)
+  instead of key→key. `approxGames` is computed exactly for soccer (double round-robin);
+  it stays a visible `TODO` for the US leagues, since game count isn't derivable from team
+  count there. Unknown sports emit conservative guesses under a loud "confirm EVERY one"
+  banner.
+
+Verified by generating throwaway soccer and basketball adapters, confirming output, and
+validating — then deleting them. The inline configs in `test/smoke.mjs` already matched
+these values, so the adapters and the smoke test now agree.
 
 ---
 
@@ -95,20 +101,19 @@ EPL   points      fetched=380  played=0    ✅ 380 === teams × (teams−1)
 
 ## Next, roughly in order
 
-1. **Fix the adapters and the generator** (above).
-2. **Lift locale and week-start out of `core/utils/time.js`.** It is a verbatim WNBA copy
+1. **Lift locale and week-start out of `core/utils/time.js`.** It is a verbatim WNBA copy
    and still hard-codes `en-US`, 12-hour, Sunday-start. Premier League needs `en-GB`,
    24-hour, **Monday**-start. Both prior builds hard-coded their own — this is the single
    most-copied piece of wrongness across the family.
-3. **Extract a shared `<Modal>`.** All three builds hand-roll the shell; `premier-league`
+2. **Extract a shared `<Modal>`.** All three builds hand-roll the shell; `premier-league`
    does it three times. The a11y *hook* was extracted, the *component* never was.
-4. **Extract the view components** — Schedule, Week, Standings/Table, Stats — as
+3. **Extract the view components** — Schedule, Week, Standings/Table, Stats — as
    adapter-driven. This is the bulk of the remaining work.
-5. **Templates**: `ci.yml` (test + Pages + Netlify + the `scripts-runtime` guard),
+4. **Templates**: `ci.yml` (test + Pages + Netlify + the `scripts-runtime` guard),
    `refresh-data.yml` (fetch → test → **PR, not push**), `netlify.toml`, `vite.config.js`.
    Copy from `the-wnba-schedule`; it has the most recent fixes, including the job-level
    `env` gate.
-6. **Decide the packaging story.** Currently a reference repo you copy from. A real
+5. **Decide the packaging story.** Currently a reference repo you copy from. A real
    `npm create` generator is the eventual goal but is not needed to build NBA next.
 
 ## Debts recorded, not inherited

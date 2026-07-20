@@ -55,6 +55,14 @@
  * @property {'date'|'week'} timeAxis
  * @property {number}  [gameLengthMs]  For the "probably still live" window
  *
+ * ── Season fetch strategy ─────────────────────────────────────────────────────
+ * Verified 2026-07-20: soccer has NO per-team schedule endpoint (HTTP 400), so it
+ * must walk the published calendar instead. This is a hard ESPN constraint, not a
+ * preference — see scripts/lib/espn.mjs fetchSeason.
+ *   'team-schedule'  teams/{abbr}/schedule    (NBA, NFL, WNBA)
+ *   'calendar-walk'  scoreboard by date window (soccer)
+ * @property {'team-schedule'|'calendar-walk'} seasonStrategy
+ *
  * ── Postseason ──────────────────────────────────────────────────────────────
  *   'series'      — best-of bracket           (NBA, WNBA)
  *   'single'      — single-elimination        (NFL, World Cup knockout)
@@ -85,6 +93,7 @@
 export const STANDINGS_MODELS = ['winloss', 'winlosstie', 'points']
 export const POSTSEASON_MODELS = ['series', 'single', 'none']
 export const TIME_AXES = ['date', 'week']
+export const SEASON_STRATEGIES = ['team-schedule', 'calendar-walk']
 
 const REQUIRED = ['id', 'name', 'season', 'espnPath', 'standingsModel', 'timeAxis', 'postseason']
 
@@ -98,6 +107,8 @@ export function validateAdapter(a) {
     problems.push(`postseason must be one of ${POSTSEASON_MODELS.join('|')}`)
   if (a?.timeAxis && !TIME_AXES.includes(a.timeAxis))
     problems.push(`timeAxis must be one of ${TIME_AXES.join('|')}`)
+  if (a?.seasonStrategy && !SEASON_STRATEGIES.includes(a.seasonStrategy))
+    problems.push(`seasonStrategy must be one of ${SEASON_STRATEGIES.join('|')}`)
   if (a?.postseason === 'series' && !a.seriesLength)
     problems.push('postseason "series" requires seriesLength')
   if (a?.groupBy && a.groupBy !== 'none' && !a.groupByTeam)
@@ -114,6 +125,7 @@ export const withDefaults = (a) =>
     homeAwaySep: '@',
     groupBy: 'none',
     timeAxis: 'date',
+    seasonStrategy: 'team-schedule',
     scoringFrequency: 'high',
     closeMargin: 5,
     winPoints: 3,
