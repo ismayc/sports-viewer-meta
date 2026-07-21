@@ -87,6 +87,15 @@ docs/PLAYBOOK.md     ← the valuable part
 
 ## Starting a new league
 
+**See [`docs/NEW-VIEWER.md`](docs/NEW-VIEWER.md)** — the step-by-step procedure the shipped
+apps actually follow: copy the closest-shaped sibling, swap the ESPN path in the few files
+that hardcode it, regenerate the committed data, adapt the one derivation that differs, and
+re-skin the identity. `the-mens-march-madness` is the worked example for the
+single-elimination-tournament shape.
+
+The `adapters/` + `gen-adapter.mjs` path below is a partially-adopted refactor; the deployed
+apps hardcode their league instead. When the two disagree, follow `docs/NEW-VIEWER.md`.
+
 ```bash
 node scripts/gen-adapter.mjs --league nba --path basketball/nba --season 2026
 ```

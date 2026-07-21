@@ -6,11 +6,17 @@ hard-won lessons and it outranks anything you'd infer from the source.
 
 ## Sibling repos (the source of truth for patterns)
 
+All family repos now live together under `~/repos/sports-trackers/` (a plain container folder,
+not itself a git repo). Each app is still its own independent GitHub repo.
+
 | Repo | Role |
 |---|---|
-| `~/repos/world-cup-viewer` | oldest, most features; groups + knockout bracket |
-| `~/repos/premier-league` | 271 tests at **100% coverage**; points table, 34 seasons of history |
-| `~/repos/the-wnba-schedule` | newest; series bracket, live alerts, quarter line scores |
+| `~/repos/sports-trackers/world-cup-viewer` | oldest, most features; groups + knockout bracket |
+| `~/repos/sports-trackers/premier-league` | 271 tests at **100% coverage**; points table, 34 seasons of history |
+| `~/repos/sports-trackers/the-wnba-schedule` | newest; series bracket, live alerts, quarter line scores |
+| `~/repos/sports-trackers/the-nba-schedule` | conference playoff bracket; base for the March Madness viewers |
+| `~/repos/sports-trackers/the-nfl-schedule` | week axis; 100% coverage |
+| `~/repos/sports-trackers/hub` | the family page — which viewers have games today (its own repo) |
 
 When adding anything, **check how the siblings did it first and match** — Chester
 maintains these as a deliberate family and asks for consistency explicitly. Deviate only

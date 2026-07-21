@@ -1,6 +1,25 @@
-# State — 2026-07-20
+# State — 2026-07-21
 
 Where the extraction stands, what is known to be wrong, and what to do next.
+
+---
+
+## 2026-07-21 — reorg, two new viewers, a hub, and going public
+
+- **Reorg.** All family repos now live under `~/repos/sports-trackers/` (a plain container
+  folder, not a git repo). Each app is still its own independent GitHub repo; deploys are
+  unaffected (they build from remotes, not local paths).
+- **Two new viewers** — `the-mens-march-madness` and `the-womens-march-madness`, NCAA D-I
+  tournament brackets built from `the-nba-schedule` with `world-cup-viewer`'s knockout
+  bracket grafted in. New single-elimination shape: `scripts/fetch-bracket.mjs` walks the
+  scoreboard `seasontype=3` and filters to the NCAA championship (the NIT/Crown/WBIT share the
+  feed), asserting the 67-game total; `src/utils/bracket.js` reconstructs four regions → Final
+  Four from each game's region/round/seed. Committed data is the completed **2026** tournament.
+- **`hub/`** — a new family page (its own repo `ismayc/sports-trackers`) showing which viewers
+  have games today, with season-phase badges, an install shelf, and deep links.
+- **Going public** — this repo becomes public, with a new [`docs/NEW-VIEWER.md`](NEW-VIEWER.md)
+  documenting the real copy-a-sibling procedure (the deployed apps hardcode their league; the
+  `adapters/` refactor is only partially adopted — the doc reconciles the two).
 
 ---
 
@@ -74,7 +93,7 @@ These are measured, not assumed. Re-check if ESPN changes.
    building was `pre` or `post` — no game was in progress. The WNBA app's live-overlay
    field mapping (`state === 'in'`, `shortDetail`, `period`, `displayClock`) is *inferred*,
    and its tests mock ESPN using the same inference, so they agree by construction.
-   `~/repos/the-wnba-schedule` has `npm run verify:live` for exactly this; run it during a
+   `~/repos/sports-trackers/the-wnba-schedule` has `npm run verify:live` for exactly this; run it during a
    game before trusting the live path in any new build.
 
 ### Smoke test output to expect
