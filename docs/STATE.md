@@ -161,10 +161,15 @@ Established building `the-nfl-schedule` (the first framework consumer); apply to
 
 ## Next, roughly in order
 
-1. **Extract the view components** — Schedule, Week, Standings/Table, Stats — as
-   adapter-driven. This is the bulk of the remaining work.
-2. **Adopt the extractions in the siblings** — point the apps at the shared `<Modal>`
-   (premier-league hand-rolls it three times) and at `createTimeUtils(adapter)`.
+1. **Extract the view components** — scoped in [`VIEW-EXTRACTION.md`](VIEW-EXTRACTION.md)
+   (2026-07-21 survey of all seven apps): ScheduleView first (byte-identical in four
+   apps already), WeekView's weekday-grid variant second, Standings/Bracket deliberately
+   last — the same-named components have diverged in behavior, not style.
+2. **Adopt the extractions in the remaining siblings** — premier-league adopted the
+   shared `<Modal>` and `createTimeUtils` 2026-07-21 (four hand-rolled shells collapsed,
+   league facts declared once; the adoption caught and upstreamed an hour-width bug in
+   the shared formatTime — 24-hour locales must keep the leading zero). The other apps
+   still hand-roll both.
 3. **Decide the packaging story.** Currently a reference repo you copy from. A real
    `npm create` generator is the eventual goal but is not needed to build NBA next.
 

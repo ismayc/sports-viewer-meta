@@ -42,6 +42,14 @@ export function createTimeUtils(adapter = {}) {
 
   const fmt = (tz, opts) => new Intl.DateTimeFormat(locale, { timeZone: tz, ...opts })
 
+  // 12-hour locales drop the leading zero ("7:05 PM"); 24-hour locales keep it
+  // ("09:05" — a bare "9:05" reads wrong to a UK eye). Intl only does the right
+  // thing if the hour width follows the locale's hour cycle.
+  const hourWidth =
+    new Intl.DateTimeFormat(locale, { hour: 'numeric' }).resolvedOptions().hourCycle === 'h12'
+      ? 'numeric'
+      : '2-digit'
+
   function timezoneOptions(current) {
     const known = zones.some((t) => t.id === current)
     return known
@@ -50,7 +58,7 @@ export function createTimeUtils(adapter = {}) {
   }
 
   function formatTime(iso, tz) {
-    return fmt(tz, { hour: 'numeric', minute: '2-digit' }).format(new Date(iso))
+    return fmt(tz, { hour: hourWidth, minute: '2-digit' }).format(new Date(iso))
   }
 
   function formatDate(iso, tz, opts = {}) {

@@ -20,6 +20,13 @@ const uk = createTimeUtils(epl)
 assert.equal(us.formatTime(KO, 'America/New_York'), '2:00 PM')
 assert.equal(uk.formatTime(KO, 'Europe/London'), '19:00')
 
+// The hour width follows the hour cycle: 12-hour drops the leading zero, 24-hour
+// keeps it — a bare "9:05" reads wrong to a UK eye. (Found adopting this in
+// premier-league, whose hand-rolled version got it right.)
+const NINE = '2026-08-15T08:05:00Z'
+assert.equal(us.formatTime(NINE, 'Europe/London'), '9:05 AM')
+assert.equal(uk.formatTime(NINE, 'Europe/London'), '09:05')
+
 // Week bucketing: KO is a Saturday. Sunday-start weeks began Sun 9 Aug;
 // Monday-start (the football week) began Mon 10 Aug.
 assert.equal(us.startOfWeek(KO, 'America/New_York'), '2026-08-09')
