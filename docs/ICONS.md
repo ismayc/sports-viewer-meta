@@ -109,12 +109,27 @@ accent-tinted inner glow. It does not survive rasterization; see the gotchas. At
 the glow was barely visible anyway, and a flat fill keeps `icon.svg` and the PNGs honest —
 regenerating with the obvious `magick` one-liner then gives what the SVG shows.
 
+## The favicon split (2026-07-21)
+
+The browser-TAB icon and the home-screen icon are the same art on different grounds:
+
+- **Tab (`favicon.svg`)**: the icon art **without** the background rect — transparent,
+  like world-cup-viewer's ⚽. Ship it as `public/favicon.svg` (= `icon.svg` minus the
+  `<rect width="512" …>` line) and point `<link rel="icon">` at it.
+- **Home screen / PWA (`icon.svg` + the PNGs)**: keep the dark ground. iOS flattens
+  transparency to black and Android's maskable crop needs a full-bleed ground, so the
+  bare art is tab-only.
+- **The hub's per-viewer PNGs** (`hub/public/icons/`) follow the tab: bare art via
+  `magick -background none favicon.svg -resize 192x192` — **except the two March Madness
+  icons, which keep their colored grounds** (dark red men's, purple women's). The net art
+  is identical between them; the ground is the identifier.
+
 ## Wiring
 
 `index.html` (in `<head>`):
 
 ```html
-<link rel="icon" type="image/svg+xml" href="./icon.svg" />
+<link rel="icon" type="image/svg+xml" href="./favicon.svg" />
 <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="NBA Schedule" />
