@@ -55,6 +55,16 @@
  * @property {'date'|'week'} timeAxis
  * @property {number}  [gameLengthMs]  For the "probably still live" window
  *
+ * ── Locale ──────────────────────────────────────────────────────────────────
+ * The single most-copied piece of wrongness across the family: every earlier
+ * build hard-coded en-US / 12-hour / Sunday-start. It belongs here. The hour
+ * cycle needs no field of its own — Intl derives it from the locale (en-US →
+ * "7:00 PM", en-GB → "19:00"). core/utils/time.js consumes these via
+ * createTimeUtils(adapter).
+ * @property {string}  locale     BCP-47 tag for all date/time formatting.
+ *                                'en-US' (US leagues) | 'en-GB' (EPL)
+ * @property {0|1}     weekStart  0 = Sunday (US) | 1 = Monday (football)
+ *
  * ── Season fetch strategy ─────────────────────────────────────────────────────
  * Verified 2026-07-20: soccer has NO per-team schedule endpoint (HTTP 400), so it
  * must walk the published calendar instead. This is a hard ESPN constraint, not a
@@ -113,6 +123,15 @@ export function validateAdapter(a) {
     problems.push('postseason "series" requires seriesLength')
   if (a?.groupBy && a.groupBy !== 'none' && !a.groupByTeam)
     problems.push('groupBy requires groupByTeam — ESPN\'s teams feed does not carry conference')
+  if (a?.weekStart != null && a.weekStart !== 0 && a.weekStart !== 1)
+    problems.push('weekStart must be 0 (Sunday) or 1 (Monday)')
+  if (a?.locale != null) {
+    try {
+      new Intl.DateTimeFormat(a.locale)
+    } catch {
+      problems.push(`locale "${a.locale}" is not a valid BCP-47 tag`)
+    }
+  }
   if (problems.length) throw new Error(`Invalid league adapter:\n  - ${problems.join('\n  - ')}`)
   return a
 }
@@ -132,6 +151,8 @@ export const withDefaults = (a) =>
     drawPoints: 1,
     tiebreakers: ['headToHead', 'pointDiff'],
     gameLengthMs: 2.25 * 60 * 60 * 1000,
+    locale: 'en-US',
+    weekStart: 0,
     storageKey: a.id,
     ...a,
   })

@@ -76,6 +76,11 @@ function sportProfile(espnPath, teamCount) {
       seasonStrategy: 'calendar-walk',
       approxGames: teamCount * (teamCount - 1), // double round-robin, exact
       groupBy: 'none',
+      // The football week starts Monday everywhere; the locale is a MARKET fact, not a
+      // sport fact (eng.* → en-GB, an MLS build would be en-US), so only claim it when
+      // the path says so.
+      weekStart: 1,
+      locale: espnPath.startsWith('soccer/eng.') ? 'en-GB' : null,
       vocab: { gameNoun: 'match', periodNoun: 'half', regulationPeriods: 2, homeAwaySep: 'v' },
     }
   if (espnPath === 'football/nfl')
@@ -151,6 +156,11 @@ const behaviorLines = [
   p.approxGames != null
     ? `  approxGames: ${p.approxGames},`
     : `  approxGames: ${teams.length} * 0, // TODO: teams × games-per-team ÷ 2`,
+  p.weekStart != null && `  weekStart: ${p.weekStart}, // Monday — the football week`,
+  p.locale
+    ? `  locale: ${q(p.locale)}, // 24-hour times come free with the locale`
+    : p.weekStart != null &&
+      `  // TODO locale: market-dependent — 'en-GB' for a UK league, 'en-US' for MLS`,
 ].filter(Boolean)
 
 const vocabLines = p.vocab

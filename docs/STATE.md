@@ -4,6 +4,37 @@ Where the extraction stands, what is known to be wrong, and what to do next.
 
 ---
 
+## 2026-07-21 (later) — locale lift, shared Modal, deploy templates
+
+Three of the five "Next" items from the reorg entry, done in order:
+
+- **Locale + week-start lifted into the adapter.** `adapters/schema.js` gains `locale`
+  (BCP-47; the hour cycle comes free — en-US → "7:00 PM", en-GB → "19:00", so there is
+  no separate 12/24h field) and `weekStart` (0 Sunday / 1 Monday), both validated,
+  defaulting to en-US/Sunday. `core/utils/time.js` is now a factory —
+  `createTimeUtils(adapter)` — with the old bare exports kept as en-US defaults for
+  code copied from earlier builds. It also gains the previously never-extracted
+  `startOfWeek`, adapted from premier-league's Monday-based version. `adapters/epl.js`
+  declares `en-GB` + Monday; `gen-adapter.mjs` emits `weekStart: 1` for all soccer and
+  `locale: 'en-GB'` only for `soccer/eng.*` (locale is a market fact, not a sport
+  fact — an MLS build would be en-US). Proven offline by `node test/time.mjs`.
+- **Shared `<Modal>` extracted** to `core/components/Modal.jsx` — the WNBA shell
+  (backdrop mousedown-to-close, role=dialog + aria-modal, `useModalA11y`, the ✕),
+  parameterized by `label` / `className` / `onClose`. Adoption in the sibling apps is
+  per-app work; premier-league's three hand-rolled shells are the first candidates.
+- **Templates landed** in `templates/`: `ci.yml` + `node-guard.yml` (verbatim from
+  the-wnba-schedule, incl. the job-level env gate), `refresh-data.yml` (league-specific
+  bits — crons, fetch script, diff paths — marked TODO), `netlify.toml`, and
+  `vite.config.js` from the-nfl-schedule (the one that enforces 100% coverage with
+  `all: true` + thresholds, per the ship checklist).
+
+Same day, in the hub: a "Next two weeks" day-grouped breakdown of every upcoming game
+across the visible viewers (respects the sports picker + services filter, rows deep-link
+into each viewer), and the 14-day look-ahead now fetches as two ~week ranges so a dense
+league's middle days don't get thinned (see docs/findings/espn-scoreboard-range-lookahead.md).
+
+---
+
 ## 2026-07-21 — reorg, two new viewers, a hub, and going public
 
 - **Reorg.** All family repos now live under `~/repos/sports-trackers/` (a plain container
@@ -130,20 +161,15 @@ Established building `the-nfl-schedule` (the first framework consumer); apply to
 
 ## Next, roughly in order
 
-1. **Lift locale and week-start out of `core/utils/time.js`.** It is a verbatim WNBA copy
-   and still hard-codes `en-US`, 12-hour, Sunday-start. Premier League needs `en-GB`,
-   24-hour, **Monday**-start. Both prior builds hard-coded their own — this is the single
-   most-copied piece of wrongness across the family.
-2. **Extract a shared `<Modal>`.** All three builds hand-roll the shell; `premier-league`
-   does it three times. The a11y *hook* was extracted, the *component* never was.
-3. **Extract the view components** — Schedule, Week, Standings/Table, Stats — as
+1. **Extract the view components** — Schedule, Week, Standings/Table, Stats — as
    adapter-driven. This is the bulk of the remaining work.
-4. **Templates**: `ci.yml` (test + Pages + Netlify + the `scripts-runtime` guard),
-   `refresh-data.yml` (fetch → test → **PR, not push**), `netlify.toml`, `vite.config.js`.
-   Copy from `the-wnba-schedule`; it has the most recent fixes, including the job-level
-   `env` gate.
-5. **Decide the packaging story.** Currently a reference repo you copy from. A real
+2. **Adopt the extractions in the siblings** — point the apps at the shared `<Modal>`
+   (premier-league hand-rolls it three times) and at `createTimeUtils(adapter)`.
+3. **Decide the packaging story.** Currently a reference repo you copy from. A real
    `npm create` generator is the eventual goal but is not needed to build NBA next.
+
+(Items formerly 1, 2, and 4 — the locale/week-start lift, the shared `<Modal>`, and the
+templates — landed 2026-07-21; see the entry at the top.)
 
 ## Debts recorded, not inherited
 

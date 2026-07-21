@@ -28,6 +28,10 @@ export default withDefaults({
   regulationPeriods: 2,
   homeAwaySep: 'v',
 
+  // en-GB gives 24-hour times for free; the football week starts Monday.
+  locale: 'en-GB',
+  weekStart: 1,
+
   // No conferences — the standings tree nests by season, not by group.
   groupBy: 'none',
 })
