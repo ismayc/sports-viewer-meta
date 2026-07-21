@@ -37,6 +37,15 @@ duplicate, the later one takes a *different* mark instead: `world-cup-viewer` ho
 `premier-league` uses a heraldic lion rather than a second identical soccer ball. A
 non-emoji mark is fine — the rule that matters is the trademark one below, not the emoji.
 
+The other lever is the **ground**. NBA and WNBA are both basketball and both shipped on
+`#0e1117`, so no choice of ball could tell them apart: same sport, same colour, same
+silhouette. `the-wnba-schedule` now uses a **rich teal `#0d4448`** ground with the ball in
+its own orange `#ff7a29`. That is a deliberate break from "the app's dark background" —
+the icon ground is an identity decision, and where two apps would otherwise collide the
+later one takes a distinct ground even though its UI stays dark. Keep it dark enough to sit
+with the family (luminance 0.047 against the others' ~0.006) and check the mark's contrast
+against it: orange on `#0d4448` is 4.16:1.
+
 Whatever the app's favicon is, the installed icon must match it. One app, one mark.
 
 ## ImageMagick gotchas (why the recipe is what it is)
@@ -142,7 +151,7 @@ and re-add* the site to the Home Screen to see the new one.
 | `premier-league` | heraldic lion (Lorc, game-icons.net, CC BY 3.0) in `#8b7bf0` | flat `#12121a` | ✅ correct |
 | `the-nba-schedule` | 🏀 Noto | flat `#0e1117` | ✅ correct |
 | `the-nfl-schedule` | 🏈 Noto | flat `#0b1220` | ✅ correct |
-| `the-wnba-schedule` | older flat-orange outline basketball | white | predates this recipe |
+| `the-wnba-schedule` | 🏀 Material Symbols in `#ff7a29` | flat `#0d4448` (teal) | ✅ correct |
 
 **NBA and NFL have been regenerated.** Both were originally built with the gradient
 version of the recipe, so their PNGs shipped with a pure black background while their
@@ -154,7 +163,9 @@ the-nba-schedule/public/icon-512.png  ->  srgba(14,17,23,1)   # #0e1117
 the-nfl-schedule/public/icon-512.png  ->  srgba(11,18,32,1)   # #0b1220
 world-cup-viewer/public/icon-512.png  ->  srgb(15,20,32)      # #0f1420
 premier-league/public/icon-512.png    ->  srgb(18,18,26)      # #12121a
+the-wnba-schedule/public/icon-512.png ->  srgba(13,68,72,1)   # #0d4448
 ```
 
-`the-wnba-schedule` is a separate question: fine to leave, or re-do with the basketball on
-a background distinct from the NBA's.
+`the-wnba-schedule` was the last app off the recipe and is now on it. The icon it carried
+was stroke-based and pre-rounded, so it was unreproducible from the documented command and
+its PNGs had white corners where the baked rounding had been flattened onto white.
