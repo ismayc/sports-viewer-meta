@@ -1,13 +1,30 @@
 # sports-viewer-meta
 
-The shared framework behind [`world-cup-viewer`](https://github.com/ismayc/world-cup-viewer),
-[`premier-league`](https://github.com/ismayc/premier-league), and
-[`wnba-schedule`](https://github.com/ismayc/wnba-schedule) — extracted so the NBA and NFL
-versions don't start from scratch.
+The shared framework behind a family of seven sports viewers (plus their hub page).
+It was extracted from the first three builds so the later ones didn't start from
+scratch — and every viewer since has been built by the procedure in
+[`docs/NEW-VIEWER.md`](docs/NEW-VIEWER.md).
 
 **Read [`docs/PLAYBOOK.md`](docs/PLAYBOOK.md) first.** The code here is the cheap part;
-the playbook is three builds' worth of feed traps, timezone landmines, and
+the playbook is several builds' worth of feed traps, timezone landmines, and
 things-that-looked-green-but-weren't.
+
+## The family
+
+| Viewer | Live | Shape / notable features |
+|---|---|---|
+| [`world-cup-viewer`](https://github.com/ismayc/world-cup-viewer) | [site](https://ismayc.github.io/world-cup-viewer/) | The original. World Cup 2026 — group stage + knockout bracket |
+| [`premier-league`](https://github.com/ismayc/premier-league) | [site](https://ismayc.github.io/premier-league/) | Points table, 34 seasons of history; ~270 tests at 100% coverage |
+| [`wnba-schedule`](https://github.com/ismayc/wnba-schedule) | [site](https://ismayc.github.io/wnba-schedule/) | Series playoff bracket, live alerts, quarter line scores |
+| [`nfl-schedule`](https://github.com/ismayc/nfl-schedule) | [site](https://ismayc.github.io/nfl-schedule/) | First framework consumer. Week axis, single-elimination postseason |
+| [`nba-schedule`](https://github.com/ismayc/nba-schedule) | [site](https://ismayc.github.io/nba-schedule/) | Conference playoff bracket; the base the March Madness viewers copied |
+| [`mens-march-madness`](https://github.com/ismayc/mens-march-madness) | [site](https://ismayc.github.io/mens-march-madness/) | NCAA D-I single-elimination tournament bracket (2026, completed) |
+| [`womens-march-madness`](https://github.com/ismayc/womens-march-madness) | [site](https://ismayc.github.io/womens-march-madness/) | Same tournament shape as the men's viewer, women's 2026 bracket |
+| [`sports-trackers`](https://github.com/ismayc/sports-trackers) (hub) | [site](https://ismayc.github.io/sports-trackers/) | The family page — which viewers have games today, with deep links |
+
+The March Madness pair is the newest shape: built from `nba-schedule` with
+`world-cup-viewer`'s knockout bracket grafted in, walking the scoreboard's
+`seasontype=3` feed and asserting the 67-game tournament total.
 
 ---
 
@@ -23,7 +40,7 @@ Every one of these apps is the same app:
 The only thing that changes between sports is declared in one file: a **league adapter**.
 
 ```
-adapters/nba.js   adapters/nfl.js   adapters/wnba.js   adapters/epl.js
+adapters/nba.js   adapters/nfl.js   adapters/epl.js
 ```
 
 ## Why this is viable at all
@@ -71,17 +88,20 @@ adapters/
   nba.js nfl.js epl.js   generated from live ESPN data
 core/
   utils/standings.js all three standings models, competition ranking, tiebreakers
-  utils/time.js      tz-correct day bucketing, week start, countdown
+  utils/time.js      createTimeUtils(adapter) — locale, week start, day bucketing, countdown
   utils/urlState.js  query-string state, only non-defaults written
   utils/ics.js       RFC 5545 with correct 75-OCTET folding
   utils/alerts.js    notable-moment detection for high-scoring sports
   context/follow.jsx starred teams, with an inert fallback so components render bare
   hooks/useModalA11y.js  escape, focus trap, focus restore
+  components/Modal.jsx   the dialog shell every build hand-rolled, extracted once
   components/TeamLogo.jsx  dual light/dark img, CSS picks — no flicker on theme change
 scripts/
   lib/espn.mjs       shared fetch layer — both season strategies, event normaliser
   gen-adapter.mjs    scaffold an adapter with REAL group data
+templates/           ci.yml, node-guard.yml, refresh-data.yml, netlify.toml, vite.config.js
 test/smoke.mjs       proves one engine serves all three models against the live API
+test/time.mjs        offline: locale + week start really do come from the adapter
 docs/PLAYBOOK.md     ← the valuable part
 ```
 
@@ -116,14 +136,14 @@ in the WNBA build.
 ## Status
 
 Extracted and verified: the adapter contract, the standings engine (all three models), the
-shared fetch layer (both strategies), and the primitives copied verbatim from
-`the-wnba-schedule`.
+shared fetch layer (both strategies), the adapter-driven time utils
+(`createTimeUtils` — locale, hour cycle, week start; proven offline by `test/time.mjs`),
+the shared `<Modal>`, the CI/refresh/Netlify templates, and the primitives copied
+verbatim from `the-wnba-schedule`.
 
-Not yet extracted — still living in the sibling repos, and flagged in the playbook's
-"known debts" section as things to fix rather than inherit:
+Not yet extracted — still living in the sibling repos:
 
-- a shared `<Modal>` component (all three builds hand-roll the shell 1–3 times over)
-- the view components themselves (Schedule / Week / Standings / Stats / Bracket)
-- the CI, refresh-workflow, and Netlify templates
-- `core/utils/time.js` still carries WNBA defaults; locale and week-start need lifting
-  into the adapter
+- the view components themselves (Schedule / Week / Standings / Stats / Bracket) — the
+  bulk of the remaining work
+- adoption: the shipped apps still hand-roll their modals and hardcode their locale;
+  pointing them at `core/` is per-app work tracked in `docs/STATE.md`
