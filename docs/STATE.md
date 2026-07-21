@@ -106,6 +106,7 @@ Established building `the-nfl-schedule` (the first framework consumer); apply to
 - [ ] **100% test coverage, enforced.** Set `coverage: { all: true, thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 } }` in `vite.config.js` so a gap fails CI — not just a badge (PLAYBOOK §8). `premier-league` is the exemplar (~270 tests); `the-wnba-schedule` is the render-test pattern to copy (`test/*.test.jsx` + real-data fixtures + a completed-postseason bracket fixture).
 - [ ] **Full README with badges**, matching `the-wnba-schedule/README.md`: CI + coverage + License shields, live links, a **Views table**, Data/feed-quirks, Testing approach, and Deploy sections.
 - [ ] **A social share image** (`public/og-image.png`, 1200×630) with `og:image`/`twitter:image` at an absolute canonical URL — authored as on-brand HTML and rendered to PNG (see `the-nfl-schedule/scripts/og-image.html` + `make-og-image.md`). Not optional.
+- [ ] **App icons** — `public/{icon.svg, apple-touch-icon.png (180), icon-192.png, icon-512.png}` from the sport's **Google Noto Emoji** ball on the app's dark background (NOT the league logo — that's a trademark and impersonates an official app). Wire `<link rel="apple-touch-icon">` + `apple-mobile-web-app-title` in `index.html` and the PNGs in the manifest. Full recipe (+ the ImageMagick gotchas) in **`docs/ICONS.md`**.
 - [ ] Don't reference the private `sports-viewer-meta` repo from any public app README/docs.
 
 ## Next, roughly in order
