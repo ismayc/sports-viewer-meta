@@ -28,8 +28,16 @@ Noto Emoji filenames are `emoji_u<codepoint>.svg` (lowercase, no `U+`):
 
 Source: <https://github.com/googlefonts/noto-emoji> — **Apache License 2.0**, so it's free
 to use with attribution (leave the `<!-- … Google Noto Emoji (Apache License 2.0) -->`
-comment in `icon.svg`). Two leagues sharing a sport (NBA/WNBA) get the *same* ball but
-should differ elsewhere — background tint and, if one predates this recipe, its icon style.
+comment in `icon.svg`).
+
+**Two apps covering the same sport can't both wear the ball.** NBA/WNBA share 🏀 and are
+told apart by background alone, which is the weakest form of the rule and only works
+because the two are rarely installed side by side. Where a second app would be a true
+duplicate, the later one takes a *different* mark instead: `world-cup-viewer` holds ⚽, so
+`premier-league` uses a heraldic lion rather than a second identical soccer ball. A
+non-emoji mark is fine — the rule that matters is the trademark one below, not the emoji.
+
+Whatever the app's favicon is, the installed icon must match it. One app, one mark.
 
 ## ImageMagick gotchas (why the recipe is what it is)
 
@@ -40,12 +48,26 @@ should differ elsewhere — background tint and, if one predates this recipe, it
 - **Don't try to render the color emoji font.** `magick … label:"🏀"` renders the glyph as
   a flat black shape (no colour) — the Apple/Noto color tables aren't supported. Use the
   **Noto SVG**, not the font.
+- **Don't fill the background with a gradient.** ImageMagick also drops a `fill` that
+  references a gradient via `url(#id)` and paints it **pure black**. This is the nastiest
+  of the three, because nothing looks wrong until you inspect a pixel: the SVG renders the
+  gradient correctly in a browser, so `icon.svg` looks right while every PNG generated from
+  it ships with a black background. Use a flat `<rect fill="#…">`.
+- **Don't trust a thumbnail.** All three failures produce a plausible-looking icon at small
+  size. Verify every PNG before committing:
+
+  ```bash
+  # must report the background colour, not srgba(0,0,0,1)
+  magick public/icon-512.png -format "%[pixel:p{8,8}]" info:
+  # must not be ~0, which means a blank square
+  magick public/icon-512.png -format "%[fx:standard_deviation]" info:
+  ```
 
 ## Recipe
 
 ```bash
 SPORT=1f3c0                 # basketball; swap per the table above
-BG='#0e1117'; TINT='#2c1622'   # app dark bg + a subtle accent-tinted inner glow
+BG='#0e1117'                # the app's dark background, as a FLAT fill (see gotchas)
 curl -sSL "https://raw.githubusercontent.com/googlefonts/noto-emoji/main/svg/emoji_u${SPORT}.svg" -o ball.svg
 
 # Extract the emoji's inner paths (its viewBox is 0 0 128 128).
@@ -53,13 +75,7 @@ PATHS=$(perl -0777 -ne 'print $1 if /<svg[^>]*>(.*)<\/svg>/s' ball.svg)
 
 cat > public/icon.svg <<SVG
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="36%" r="80%">
-      <stop offset="0%" stop-color="${TINT}"/>
-      <stop offset="62%" stop-color="${BG}"/>
-    </radialGradient>
-  </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="${BG}"/>
   <!-- <sport> — Google Noto Emoji (Apache License 2.0); padded for Android maskable cropping -->
   <g transform="translate(256,256) scale(2.7) translate(-64,-64)">
 $PATHS
@@ -71,11 +87,18 @@ SVG
 # maskable safe zone so Android's circle/squircle crop never clips it.
 magick -background none public/icon.svg -resize 512x512 public/icon-512.png
 magick -background none public/icon.svg -resize 192x192 public/icon-192.png
-magick -background none public/icon.svg -resize 180x180 public/apple-touch-icon.png
+# iOS does not support transparency in a touch icon, so flatten the alpha away.
+magick -background none public/icon.svg -resize 180x180 -alpha remove -alpha off public/apple-touch-icon.png
 ```
 
-Use each app's own dark bg + accent for `BG`/`TINT` (NBA red `#2c1622`/`#0e1117`, NFL navy
-`#16233d`/`#0b1220`, …). Always eyeball the 180px output — that's the real Home Screen size.
+Use each app's own dark background for `BG` (NBA `#0e1117`, NFL `#0b1220`, World Cup
+`#0f1420`, PL `#12121a`). Always eyeball the 180px output — that's the real Home Screen
+size — and run the two verification commands above before committing.
+
+Earlier revisions of this recipe wrapped the background in a `radialGradient` for a subtle
+accent-tinted inner glow. It does not survive rasterization; see the gotchas. At icon scale
+the glow was barely visible anyway, and a flat fill keeps `icon.svg` and the PNGs honest —
+regenerating with the obvious `magick` one-liner then gives what the SVG shows.
 
 ## Wiring
 
@@ -111,6 +134,27 @@ and re-add* the site to the Home Screen to see the new one.
 - **A different emoji set** (Twemoji, CC-BY 4.0; OpenMoji, CC-BY-SA 4.0) if a particular
   ball reads better — same recipe, different source + attribution.
 
-Applied so far: `world-cup-viewer` (⚽, pre-existing), `the-nba-schedule` (🏀), and
-`the-nfl-schedule` (🏈). `the-wnba-schedule` still uses its older flat-orange outline
-basketball — fine to leave, or re-do with 🏀 on a distinct background if desired.
+## Applied so far
+
+| App | Mark | Background | State |
+|---|---|---|---|
+| `world-cup-viewer` | ⚽ Noto | flat `#0f1420` | ✅ correct |
+| `premier-league` | heraldic lion (Lorc, game-icons.net, CC BY 3.0) in `#8b7bf0` | flat `#12121a` | ✅ correct |
+| `the-nba-schedule` | 🏀 Noto | flat `#0e1117` | ✅ correct |
+| `the-nfl-schedule` | 🏈 Noto | flat `#0b1220` | ✅ correct |
+| `the-wnba-schedule` | older flat-orange outline basketball | white | predates this recipe |
+
+**NBA and NFL have been regenerated.** Both were originally built with the gradient
+version of the recipe, so their PNGs shipped with a pure black background while their
+`icon.svg` still showed the intended tint in a browser — which is exactly why it survived
+two apps unnoticed. Their backgrounds are now flat, and every PNG verifies:
+
+```
+the-nba-schedule/public/icon-512.png  ->  srgba(14,17,23,1)   # #0e1117
+the-nfl-schedule/public/icon-512.png  ->  srgba(11,18,32,1)   # #0b1220
+world-cup-viewer/public/icon-512.png  ->  srgb(15,20,32)      # #0f1420
+premier-league/public/icon-512.png    ->  srgb(18,18,26)      # #12121a
+```
+
+`the-wnba-schedule` is a separate question: fine to leave, or re-do with the basketball on
+a background distinct from the NBA's.
