@@ -46,6 +46,16 @@ later one takes a distinct ground even though its UI stays dark. Keep it dark en
 with the family (luminance 0.047 against the others' ~0.006) and check the mark's contrast
 against it: orange on `#0d4448` is 4.16:1.
 
+> **Update (2026-07-23): WNBA retired the shared ball.** `the-wnba-schedule` now wears a
+> **"W" monogram** — the league's own "the W" nickname — in orange `#ff7a29` on the same
+> teal `#0d4448`, so it no longer leans on ground *alone* to differ from `the-nba-schedule`.
+> The basketball it vacated moved to `the-womens-march-madness` (orange ball on teal),
+> replacing that app's former hoop+net mark; `the-mens-march-madness` keeps its maroon hoop,
+> so the two tournaments stay distinct. The monogram is a real **Futura Bold** glyph
+> extracted (via `fonttools`) to a filled `<path>` — a *stroked* W hit the very rasterizer
+> bug documented below and vanished to a blank square, so the "filled paths only" rule
+> applies to lettering exactly as it does to the ball.
+
 Whatever the app's favicon is, the installed icon must match it. One app, one mark.
 
 ## ImageMagick gotchas (why the recipe is what it is)
