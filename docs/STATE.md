@@ -31,7 +31,8 @@ Three of the five "Next" items from the reorg entry, done in order:
 Same day, in the hub: a "Next two weeks" day-grouped breakdown of every upcoming game
 across the visible viewers (respects the sports picker + services filter, rows deep-link
 into each viewer), and the 14-day look-ahead now fetches as two ~week ranges so a dense
-league's middle days don't get thinned (see docs/findings/espn-scoreboard-range-lookahead.md).
+league's middle days don't get thinned (ESPN caps a date-range scoreboard response, so
+one wide range silently drops games from the busiest days in the middle).
 
 ---
 
