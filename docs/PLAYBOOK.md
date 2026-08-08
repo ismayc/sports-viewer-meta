@@ -271,6 +271,18 @@ conference sweeps.
 - **Keep comments that record fixed bugs.** A button may not contain a button. React
   renders `0`, so use `x?.length > 0` not `x &&`. Don't memoise a "next kickoff" lookup on
   `[fixtures]` or it pins to a passed kickoff. These are worth more than the code.
+- **Condensed view strip (2026-08-08, all ten viewers).** The tab nav must stay reachable
+  mid-list — landing scrolls push it off-screen before the reader touches anything. The
+  shipped pattern: an IntersectionObserver on the in-flow nav toggles a `nav-away` class;
+  a `position: fixed` strip (never sticky — its appearance must not reflow the document)
+  shows the current view and expands to the full tab set as an absolute dropdown. Its
+  height is a static token `--view-strip-h: calc(44px + env(safe-area-inset-top))` — no JS
+  measuring — so every other pinned bar offsets under `.nav-away`, and jump/landing
+  scroll-margins reserve the allowance *unconditionally* (the jump is exactly what summons
+  the strip a frame later). Guard the effect with
+  `typeof IntersectionObserver !== 'function'` for jsdom; tests stub an IO class that
+  hands the callback to the test. Strip open/away state is component-local — no readState
+  key.
 
 ---
 
