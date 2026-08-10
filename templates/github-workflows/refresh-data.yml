@@ -58,7 +58,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           npm ci
-          npm test
+          npm run coverage:badge  # CI's own gate — a bot push triggers no CI, so anything weaker can ship a break that only surfaces on the next human push
 
       - name: Open a pull request
         if: steps.diff.outputs.changed == 'true'

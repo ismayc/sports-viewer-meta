@@ -26,6 +26,17 @@ Now consolidated:
   post-tournament) and the browser-side `src/services` fetchers (different runtime; a
   15s backoff has no place in a UI poll).
 
+## 2026-08-10 (later) — refresh gate = CI gate
+
+The refresh workflows' in-job gate was plain `npm test`, but a GITHUB_TOKEN push
+triggers no CI — so a data refresh could break the 100% coverage invariant invisibly
+until the next human push (it did: the WNBA race engine's away-winner ledger arm went
+dry when the 2026-08-10 morning refresh landed, covered until then only via app tests
+over the committed schedule). All six refresh workflows (NBA, WNBA, NFL, PL, MM×2) and
+the `templates/github-workflows/refresh-data.yml` template now run the repo's own
+coverage command as the gate. Rule of thumb: an unwatched pipeline must run the
+STRONGEST gate a watched push would face.
+
 ---
 
 ## 2026-07-21 (later) — locale lift, shared Modal, deploy templates
