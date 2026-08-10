@@ -247,6 +247,11 @@ conference sweeps.
   with no `npm ci`. Enforce it with a CI grep job — otherwise it breaks at 6am, not in
   review. (Shared **relative** imports are fine; both prior builds wrongly duplicated
   `getJson`/`arg` across every script. `scripts/lib/` satisfies the guard.)
+- **The network transport is vendored, not copy-pasted.** Every repo carries the same
+  `scripts/lib/fetch.mjs` (retry w/ backoff+jitter, 5xx/429-only, `mapLimit` concurrency
+  cap) byte-for-byte; the canonical copy lives in this repo and
+  `scripts/check-fetch-sync.mjs` diffs all of them. Fix the canonical file first, then
+  re-vendor — never patch one repo's copy in place.
 - **The refresh workflow opens a PR, not a push**, and runs the suite against the newly
   fetched data first.
 - **`base: './'`** so one `dist/` serves a domain root and a subpath.

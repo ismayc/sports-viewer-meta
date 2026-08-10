@@ -8,6 +8,7 @@
   "license": "MIT",
   "scripts": {
     "smoke": "node test/smoke.mjs",
-    "gen:adapter": "node scripts/gen-adapter.mjs"
+    "gen:adapter": "node scripts/gen-adapter.mjs",
+    "check:fetch-sync": "node scripts/check-fetch-sync.mjs"
   }
 }

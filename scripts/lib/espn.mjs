@@ -6,6 +6,10 @@
 //
 // Node built-ins only.
 
+import { getJson, mapLimit, CONCURRENCY } from './fetch.mjs'
+
+export { sleep, backoffMs, CONCURRENCY, mapLimit, fetchRetry, getJson, getText } from './fetch.mjs'
+
 export const SITE = 'https://site.api.espn.com/apis/site/v2/sports'
 export const CORE = 'https://site.api.espn.com/apis/v2/sports'
 export const WEB = 'https://site.web.api.espn.com/apis/common/v3/sports'
@@ -13,19 +17,6 @@ export const WEB = 'https://site.web.api.espn.com/apis/common/v3/sports'
 export const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback
-}
-
-export async function getJson(url, tries = 3) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return await res.json()
-    } catch (err) {
-      if (i === tries - 1) throw new Error(`${url}\n  ${err.message}`)
-      await new Promise((r) => setTimeout(r, 500 * (i + 1)))
-    }
-  }
 }
 
 export const yyyymmdd = (d) =>
@@ -152,18 +143,16 @@ export async function fetchByCalendar(espnPath, { windowDays = 10, classify } = 
 
 async function fetchByTeamSchedule(espnPath, teams, { season, seasonTypes = [2, 3], classify } = {}) {
   const byId = new Map()
-  const pages = await Promise.all(
-    teams.map(async (t) => {
-      const evs = []
-      for (const type of seasonTypes) {
-        const d = await getJson(
-          `${SITE}/${espnPath}/teams/${t.abbr}/schedule?season=${season}&seasontype=${type}`
-        )
-        evs.push(...(d.events || []))
-      }
-      return evs
-    })
-  )
+  const pages = await mapLimit(teams, CONCURRENCY, async (t) => {
+    const evs = []
+    for (const type of seasonTypes) {
+      const d = await getJson(
+        `${SITE}/${espnPath}/teams/${t.abbr}/schedule?season=${season}&seasontype=${type}`
+      )
+      evs.push(...(d.events || []))
+    }
+    return evs
+  })
   for (const ev of pages.flat()) {
     const g = normalizeEvent(ev, { classify })
     if (g) byId.set(g.id, g)

@@ -1,6 +1,30 @@
-# State — 2026-07-21
+# State — 2026-08-10
 
 Where the extraction stands, what is known to be wrong, and what to do next.
+
+---
+
+## 2026-08-10 — vendored transport layer (fetch.mjs)
+
+The hardened ESPN fetch policy (5 retries, exponential backoff + jitter, retry only
+5xx/429/network, `mapLimit` concurrency cap of 6 — shipped across the family 2026-07-28
+after the weekly refresh failures) was copy-pasted into 14 script files across 9 repos.
+Now consolidated:
+
+- **`scripts/lib/fetch.mjs` is the canonical transport** (sleep, backoffMs, CONCURRENCY,
+  mapLimit, fetchRetry → Response, getJson, getText). Vendored byte-for-byte into every
+  fetching repo's `scripts/lib/fetch.mjs`; scripts import it relatively, satisfying the
+  no-npm-ci guard.
+- **`scripts/check-fetch-sync.mjs`** (`npm run check:fetch-sync`) diffs every sibling's
+  copy against the canonical one — run it after touching the canonical file.
+- `lib/espn.mjs` here now re-exports the transport and its `fetchByTeamSchedule` gained
+  the same `mapLimit` cap (it still had the stale pre-hardening 3-try getJson).
+- Bonus hardening: the logo mirrors in premier-league, both March Madness repos, and
+  the-nfl-schedule fetched raw with no retry — now routed through `fetchRetry`, matching
+  what NBA/WNBA already did.
+- Out of scope, deliberately: world-cup-viewer (OpenFootball text pipeline, frozen
+  post-tournament) and the browser-side `src/services` fetchers (different runtime; a
+  15s backoff has no place in a UI poll).
 
 ---
 
