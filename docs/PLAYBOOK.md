@@ -311,6 +311,17 @@ conference sweeps.
   `typeof IntersectionObserver !== 'function'` for jsdom; tests stub an IO class that
   hands the callback to the test. Strip open/away state is component-local — no readState
   key.
+- **Cap the default schedule view — a fresh rollover renders the WHOLE season.** The
+  family default of "last week of results + everything upcoming" is modest mid-season,
+  but the day a new season lands nothing is past and every game is upcoming: the NBA
+  viewer rendered all 1,200 cards on load (app tests 9 min locally, timeouts on CI's
+  2-core runner; a phone would crawl). Ship the "Later games" chip (2026-08-14, NBA →
+  WNBA/NFL/PL): default = last week + the next **fortnight of game-days** (game-days,
+  not calendar days, so a pre-season landing shows the fortnight around opening night
+  rather than an empty window), rest behind a ▸/▾ chip with a hidden-game count badge
+  mirroring "Earlier games". Toggle state is component-local — no readState key.
+  Diagnostic smell: app tests that pass locally but time out on CI right after a
+  rollover.
 
 ---
 
