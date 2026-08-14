@@ -252,8 +252,31 @@ conference sweeps.
   cap) byte-for-byte; the canonical copy lives in this repo and
   `scripts/check-fetch-sync.mjs` diffs all of them. Fix the canonical file first, then
   re-vendor — never patch one repo's copy in place.
-- **The refresh workflow opens a PR, not a push**, and runs the suite against the newly
-  fetched data first.
+- **The refresh auto-publishes — no PR, no PAT** (2026-07-24, all six data viewers):
+  fetch → gate → commit straight to main → build → deploy Pages in the same job. A
+  `GITHUB_TOKEN` push cannot trigger the CI deploy (GitHub's anti-recursion rule), so
+  the refresh workflow runs the Pages stack itself. The in-job gate must be the
+  **strongest gate a watched push would face** — the repo's own coverage command, not
+  bare `npm test`; a weaker gate once let refreshed data dry up a covered branch and
+  break the next human push (WNBA, 2026-08-10). When you replace a pipeline like this,
+  close its in-flight PRs in the same change — zombie `data/refresh` PRs linger and
+  get accidentally merged.
+- **The refresh targets the committed season, never the calendar.** The fetch script's
+  default season is `SEASON` imported from `src/data/teams.js` — the season the site
+  is showing — and the refresh workflow passes no `--season` flag. A calendar-derived
+  default (or a season hardcoded in the workflow) disagrees with a fresh rollover: the
+  morning after the NBA's 2026-08-13 rollover the bot re-fetched the ARCHIVED season
+  over the committed one, growth waved it past the shrink guard, and only the coverage
+  gate stopped the site reverting. Only a rollover moves teams.js; the bot follows.
+- **CI concurrency groups per ref; only the Pages deploy shares a lock.** GitHub keeps
+  one running + one pending run per concurrency group and each new arrival cancels the
+  previous *pending* one (`cancel-in-progress: false` protects only the running one).
+  A workflow-level `group: pages` spanning `push` and `pull_request` therefore lets a
+  busy PR branch cancel main's queued CI/deploy — invisible until a repo's first
+  long-lived PR (its next rollover). Group CI per ref (`ci-${{ github.ref }}`), give
+  refresh its own group, and put the shared `pages` lock job-level on the deploy jobs
+  only. Diagnostic signature: main runs "cancelled" at the exact seconds PR pushes
+  arrived.
 - **`base: './'`** so one `dist/` serves a domain root and a subpath.
 - **Mirror logos locally** through ESPN's combiner at 160px (~8KB vs ~40KB), render both
   light and dark `<img>`, and let CSS pick — no flicker, no re-request on theme change.

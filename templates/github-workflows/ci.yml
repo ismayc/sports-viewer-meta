@@ -1,7 +1,8 @@
-# Copied from the-wnba-schedule (the most recently fixed version — including the
-# job-level env gate on the Netlify job). Nothing here is league-specific; drop it
-# into .github/workflows/ as-is. Requires the package to define coverage:badge
-# (writes public/coverage.json) — see the family ship checklist in docs/STATE.md.
+# Copied from the-nba-schedule (the most recently fixed version — including the
+# per-ref concurrency group and the job-level Pages deploy lock, PLAYBOOK §8).
+# Nothing here is league-specific; drop it into .github/workflows/ as-is. Requires
+# the package to define coverage:badge (writes public/coverage.json) — see the
+# family ship checklist in docs/STATE.md.
 name: CI
 
 on:
@@ -12,10 +13,15 @@ on:
 permissions:
   contents: read
 
-# A push that lands while a deploy is running should supersede it, not queue behind
-# it — but never cancel a deploy midway.
+# Per-ref group: a PR branch's runs must never occupy main's slot. A single static
+# group bit the NBA viewer on 2026-08-13 — GitHub keeps one running + one pending run
+# per group and each new arrival CANCELS the previous pending one (cancel-in-progress
+# only protects the RUNNING run), so while a busy PR was pushing, main's CI and its
+# deploy kept getting cancelled before they could start. The only lock that must
+# serialize repo-wide is the Pages deploy: a job-level `pages` group on the deploy
+# job below, shared with refresh-data's deploy job.
 concurrency:
-  group: pages
+  group: ci-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -41,6 +47,10 @@ jobs:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    # Serialize Pages deploys across workflows (CI + refresh-data), never mid-cancel.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write
