@@ -10,16 +10,29 @@ name: Refresh data
 # Per-league edits, and nothing else:
 #   1. The cron times — schedule the early run AFTER the league's latest possible
 #      game ends in UTC (WNBA: 09:15 covers West-coast tips; EPL would want ~23:15).
+#      Give each main run a catch-up an hour later (see below).
 #   2. The fetch script name. Do NOT pass --season: the script must default to the
 #      committed SEASON from src/data/teams.js (PLAYBOOK §8 — a calendar default or a
 #      season pinned here re-fetches the archived season the morning after a rollover).
 #   3. The diff/commit paths, if the app commits data beyond src/data + public/logos.
 #   4. The commit message noun ("schedule, results, and player stats").
+#
+# ESPN's edge (Akamai) blocks a subset of GitHub's Azure runner IPs intermittently —
+# ~1 run in 8 lands on a blocked IP and 403s (WNBA 2026-08-09, 2026-08-16). Retrying
+# inside that run is useless: it keeps the same blocked IP (proven 2026-08-16: 5×403
+# over 61 min). A fresh run gets a fresh runner, hence a fresh IP, which almost always
+# isn't blocked — so each main cron is shadowed by a catch-up an hour later. On a normal
+# day the catch-up finds nothing to do and exits in seconds; the `refresh-data`
+# concurrency group keeps it from overlapping the main run. A wide, hours-long block
+# survives even the catch-up — set the optional ESPN_PROXY variable (an egress that
+# isn't a GitHub IP) to route around it; see README "Data refresh".
 
 on:
   schedule:
-    - cron: '15 9 * * *' # TODO: after the league's latest game, in UTC
-    - cron: '15 19 * * *' # TODO: catches afternoon games and schedule changes
+    - cron: '15 9 * * *' # TODO main: after the league's latest game, in UTC
+    - cron: '15 10 * * *' # TODO catch-up on a fresh runner IP, ~1h after the main run
+    - cron: '15 19 * * *' # TODO main: afternoon games and schedule changes
+    - cron: '15 20 * * *' # TODO catch-up on a fresh runner IP, ~1h after the main run
   workflow_dispatch:
 
 permissions:
@@ -47,27 +60,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      # No deps needed to fetch — the script uses Node built-ins only.
+      # No deps needed to fetch — the script uses Node built-ins only. Season defaults to
+      # the committed teams.js SEASON — do NOT pass --season (PLAYBOOK §8).
       #
-      # ESPN's edge (Akamai) occasionally blocks the runner's IP range outright: every
-      # retry inside the fetch script then exhausts and the run fails on the very first
-      # call (the wnba/teams 403, 2026-08-16). That block is transient and usually clears
-      # within the hour, so wait it out rather than going red — retry the whole fetch
-      # every 15 minutes, up to an hour. A genuine script/data bug fails on the first
-      # attempt and every retry alike, so this only ever delays a real failure by ~an
-      # hour; it never hides one. The refresh job no longer holds the `pages` lock (only
-      # the deploy job does), so idling here doesn't stall CI's deploys. Season defaults
-      # to the committed teams.js SEASON — do NOT pass --season (PLAYBOOK §8).
+      # Deliberately no in-run retry loop. A 403 here means this runner's IP is blocked,
+      # and every retry on the same runner keeps that same IP — so an in-run loop can only
+      # burn the hour and fail anyway (proven 2026-08-16: 5×403 over 61 min). Fresh-IP
+      # recovery is the +1h catch-up schedule above. For a wider, hours-long block, set the
+      # ESPN_PROXY repo variable (an egress that isn't a GitHub IP — deploy the free Worker
+      # and follow the steps in sports-viewer-meta/docs/ESPN-PROXY.md); the fetch script
+      # then routes ESPN calls through it and a blocked runner stops mattering entirely.
       - name: Regenerate schedule, players, and logos
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if node scripts/fetch-schedule.mjs; then exit 0; fi
-            [ "$attempt" = 5 ] && break
-            echo "::warning::fetch attempt $attempt failed (ESPN may be blocking the runner); retrying in 15 min…"
-            sleep 900
-          done
-          echo "::error::fetch still failing after 5 attempts over ~1 hour"
-          exit 1
+        run: node scripts/fetch-schedule.mjs
+        env:
+          ESPN_PROXY: ${{ vars.ESPN_PROXY }}
 
       - name: Summarize what changed
         id: diff
