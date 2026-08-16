@@ -50,10 +50,14 @@ Verified 2026-07-20 across NBA, NFL, WNBA, and EPL. All keyless, all CORS-open, 
 backend and no `.env` ever required.
 
 ```
-site.api.espn.com/apis/site/v2/sports/{espnPath}/teams
-site.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=…
-site.api.espn.com/apis/v2/sports/{espnPath}/standings
+site.web.api.espn.com/apis/site/v2/sports/{espnPath}/teams
+site.web.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=…
+site.web.api.espn.com/apis/v2/sports/{espnPath}/standings
 ```
+
+Use `site.web.api`, never the `site.api` host these routes are also published on: ESPN
+refuses `site.api` from datacenter IPs, so a viewer built against it works on your laptop
+and 403s the moment CI refreshes it (`docs/ESPN-PROXY.md`).
 
 ## What actually differs
 

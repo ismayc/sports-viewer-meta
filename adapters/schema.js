@@ -7,11 +7,15 @@
 //
 // Verified 2026-07-20: ESPN serves the SAME endpoint shape for every league below.
 // Only `espnPath` changes:
-//   https://site.api.espn.com/apis/site/v2/sports/{espnPath}/teams
-//   https://site.api.espn.com/apis/site/v2/sports/{espnPath}/teams/{abbr}/schedule
-//   https://site.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=…
-//   https://site.api.espn.com/apis/v2/sports/{espnPath}/standings
+//   https://site.web.api.espn.com/apis/site/v2/sports/{espnPath}/teams
+//   https://site.web.api.espn.com/apis/site/v2/sports/{espnPath}/teams/{abbr}/schedule
+//   https://site.web.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=…
+//   https://site.web.api.espn.com/apis/v2/sports/{espnPath}/standings
 // That single fact is why this framework is viable at all.
+//
+// The host is site.web.api, NOT the site.api these routes are also published on —
+// ESPN refuses site.api from datacenter IPs, so site.api works locally and 403s in CI
+// (2026-08-16; see docs/ESPN-PROXY.md).
 
 /**
  * @typedef {Object} LeagueAdapter

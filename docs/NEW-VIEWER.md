@@ -17,7 +17,7 @@ Read [`PLAYBOOK.md`](PLAYBOOK.md) first — it is the expensive part. This is ju
 this. Check:
 
 ```bash
-curl -s "https://site.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=YYYYMMDD" \
+curl -s "https://site.web.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=YYYYMMDD" \
   | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('events',[])),'events')"
 ```
 

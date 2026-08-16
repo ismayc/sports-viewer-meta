@@ -43,12 +43,17 @@ Get those two wrong and you get flickering scores and phantom 0–0 results.
 Verified 2026-07-20 across four leagues. Only the `sport/league` segment changes:
 
 ```
-https://site.api.espn.com/apis/site/v2/sports/{espnPath}/teams
-https://site.api.espn.com/apis/site/v2/sports/{espnPath}/teams/{abbr}/schedule?season=&seasontype=
-https://site.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=YYYYMMDD[-YYYYMMDD]
-https://site.api.espn.com/apis/v2/sports/{espnPath}/standings?season=
+https://site.web.api.espn.com/apis/site/v2/sports/{espnPath}/teams
+https://site.web.api.espn.com/apis/site/v2/sports/{espnPath}/teams/{abbr}/schedule?season=&seasontype=
+https://site.web.api.espn.com/apis/site/v2/sports/{espnPath}/scoreboard?dates=YYYYMMDD[-YYYYMMDD]
+https://site.web.api.espn.com/apis/v2/sports/{espnPath}/standings?season=
 https://site.web.api.espn.com/apis/common/v3/sports/{espnPath}/statistics/byathlete?season=&seasontype=
 ```
+
+**`site.web.api`, not `site.api`.** The same routes exist on both, but ESPN's edge
+refuses `site.api` from datacenter IPs — every unattended refresh — while `site.web.api`
+serves them normally. Getting this wrong costs a day: the whole family's refresh was
+down on 2026-08-16 before the host was identified. See `docs/ESPN-PROXY.md`.
 
 | League | `espnPath` | Teams |
 |---|---|---|

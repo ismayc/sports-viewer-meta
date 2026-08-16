@@ -17,15 +17,15 @@ name: Refresh data
 #   3. The diff/commit paths, if the app commits data beyond src/data + public/logos.
 #   4. The commit message noun ("schedule, results, and player stats").
 #
-# ESPN's edge (Akamai) blocks a subset of GitHub's Azure runner IPs intermittently —
-# ~1 run in 8 lands on a blocked IP and 403s (WNBA 2026-08-09, 2026-08-16). Retrying
-# inside that run is useless: it keeps the same blocked IP (proven 2026-08-16: 5×403
-# over 61 min). A fresh run gets a fresh runner, hence a fresh IP, which almost always
-# isn't blocked — so each main cron is shadowed by a catch-up an hour later. On a normal
-# day the catch-up finds nothing to do and exits in seconds; the `refresh-data`
-# concurrency group keeps it from overlapping the main run. A wide, hours-long block
-# survives even the catch-up — set the optional ESPN_PROXY variable (an egress that
-# isn't a GitHub IP) to route around it; see README "Data refresh".
+# On ESPN 403s: the fetch scripts must call site.web.api.espn.com, never
+# site.api.espn.com. ESPN's edge (Akamai) refuses site.api from datacenter IPs — every
+# GitHub runner is one — while serving the same routes from site.web.api normally. If a
+# refresh here starts failing with `HTTP 403 — still failing after 5 attempts`, check
+# the host in scripts/ before anything else; see docs/ESPN-PROXY.md for how that was
+# established, and for the two defences that remain useful for a genuine per-IP block:
+# the +1h catch-up cron below (a fresh runner, hence a fresh IP) and the optional
+# ESPN_PROXY egress. Neither can help against a host-wide block — a fresh runner is
+# still a datacenter, and a proxy pointed at the blocked host inherits the block.
 
 on:
   schedule:
@@ -63,13 +63,12 @@ jobs:
       # No deps needed to fetch — the script uses Node built-ins only. Season defaults to
       # the committed teams.js SEASON — do NOT pass --season (PLAYBOOK §8).
       #
-      # Deliberately no in-run retry loop. A 403 here means this runner's IP is blocked,
-      # and every retry on the same runner keeps that same IP — so an in-run loop can only
-      # burn the hour and fail anyway (proven 2026-08-16: 5×403 over 61 min). Fresh-IP
-      # recovery is the +1h catch-up schedule above. For a wider, hours-long block, set the
-      # ESPN_PROXY repo variable (an egress that isn't a GitHub IP — deploy the free Worker
-      # and follow the steps in sports-viewer-meta/docs/ESPN-PROXY.md); the fetch script
-      # then routes ESPN calls through it and a blocked runner stops mattering entirely.
+      # Deliberately no in-run retry loop. Whatever a 403 here means, retrying inside the
+      # run cannot fix it: a host-wide block (the 2026-08-16 outage) is unaffected by
+      # anything this runner does, and a per-IP block keeps the same IP for the whole run
+      # (proven the same day: 5×403 over 61 min). Recovery lives outside the run — the
+      # +1h catch-up cron for a per-IP block, ESPN_PROXY for a wider one, and the right
+      # host in scripts/ for the case that actually bit us.
       - name: Regenerate schedule, players, and logos
         run: node scripts/fetch-schedule.mjs
         env:

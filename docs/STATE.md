@@ -136,7 +136,7 @@ These are measured, not assumed. Re-check if ESPN changes.
    CORS-open. This is the entire reason the framework is viable.
 
 2. **Soccer has NO per-team schedule endpoint.**
-   `site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/BRE/schedule` returns
+   `site.web.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/BRE/schedule` returns
    **HTTP 400** with *any* combination of `season` / `seasontype` / no params. US leagues
    return it fine. Soccer must use the calendar walk. Found by a crash in `test/smoke.mjs`,
    not by reading docs.
