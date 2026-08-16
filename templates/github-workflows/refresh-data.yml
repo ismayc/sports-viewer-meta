@@ -10,7 +10,6 @@ name: Refresh data
 # Per-league edits, and nothing else:
 #   1. The cron times — schedule the early run AFTER the league's latest possible
 #      game ends in UTC (WNBA: 09:15 covers West-coast tips; EPL would want ~23:15).
-#      Give each main run a catch-up an hour later (see below).
 #   2. The fetch script name. Do NOT pass --season: the script must default to the
 #      committed SEASON from src/data/teams.js (PLAYBOOK §8 — a calendar default or a
 #      season pinned here re-fetches the archived season the morning after a rollover).
@@ -19,20 +18,14 @@ name: Refresh data
 #
 # On ESPN 403s: the fetch scripts must call site.web.api.espn.com, never
 # site.api.espn.com. ESPN's edge (Akamai) refuses site.api from datacenter IPs — every
-# GitHub runner is one — while serving the same routes from site.web.api normally. If a
-# refresh here starts failing with `HTTP 403 — still failing after 5 attempts`, check
-# the host in scripts/ before anything else; see docs/ESPN-PROXY.md for how that was
-# established, and for the two defences that remain useful for a genuine per-IP block:
-# the +1h catch-up cron below (a fresh runner, hence a fresh IP) and the optional
-# ESPN_PROXY egress. Neither can help against a host-wide block — a fresh runner is
-# still a datacenter, and a proxy pointed at the blocked host inherits the block.
+# GitHub runner is one — while serving the same routes from site.web.api normally. A
+# 403 here means the host is refusing us, so it fails fast rather than retrying; check
+# the host in scripts/ before anything else. See docs/ESPN-403.md.
 
 on:
   schedule:
-    - cron: '15 9 * * *' # TODO main: after the league's latest game, in UTC
-    - cron: '15 10 * * *' # TODO catch-up on a fresh runner IP, ~1h after the main run
-    - cron: '15 19 * * *' # TODO main: afternoon games and schedule changes
-    - cron: '15 20 * * *' # TODO catch-up on a fresh runner IP, ~1h after the main run
+    - cron: '15 9 * * *' # TODO after the league's latest game, in UTC
+    - cron: '15 19 * * *' # TODO afternoon games and schedule changes
   workflow_dispatch:
 
 permissions:
@@ -63,16 +56,11 @@ jobs:
       # No deps needed to fetch — the script uses Node built-ins only. Season defaults to
       # the committed teams.js SEASON — do NOT pass --season (PLAYBOOK §8).
       #
-      # Deliberately no in-run retry loop. Whatever a 403 here means, retrying inside the
-      # run cannot fix it: a host-wide block (the 2026-08-16 outage) is unaffected by
-      # anything this runner does, and a per-IP block keeps the same IP for the whole run
-      # (proven the same day: 5×403 over 61 min). Recovery lives outside the run — the
-      # +1h catch-up cron for a per-IP block, ESPN_PROXY for a wider one, and the right
-      # host in scripts/ for the case that actually bit us.
+      # Deliberately no workflow-level retry. The transport already retries what is
+      # actually transient (5xx, 429, network); a 403 is not, and fails fast on purpose
+      # (proven 2026-08-16: retrying one bought 5×403 over 61 min and changed nothing).
       - name: Regenerate schedule, players, and logos
         run: node scripts/fetch-schedule.mjs
-        env:
-          ESPN_PROXY: ${{ vars.ESPN_PROXY }}
 
       - name: Summarize what changed
         id: diff

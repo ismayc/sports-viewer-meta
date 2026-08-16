@@ -15,7 +15,7 @@
 //
 // The host is site.web.api, NOT the site.api these routes are also published on —
 // ESPN refuses site.api from datacenter IPs, so site.api works locally and 403s in CI
-// (2026-08-16; see docs/ESPN-PROXY.md).
+// (2026-08-16; see docs/ESPN-403.md).
 
 /**
  * @typedef {Object} LeagueAdapter

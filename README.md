@@ -57,7 +57,7 @@ site.web.api.espn.com/apis/v2/sports/{espnPath}/standings
 
 Use `site.web.api`, never the `site.api` host these routes are also published on: ESPN
 refuses `site.api` from datacenter IPs, so a viewer built against it works on your laptop
-and 403s the moment CI refreshes it (`docs/ESPN-PROXY.md`).
+and 403s the moment CI refreshes it (`docs/ESPN-403.md`).
 
 ## What actually differs
 
