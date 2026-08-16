@@ -48,8 +48,26 @@ jobs:
           cache: npm
 
       # No deps needed to fetch — the script uses Node built-ins only.
+      #
+      # ESPN's edge (Akamai) occasionally blocks the runner's IP range outright: every
+      # retry inside the fetch script then exhausts and the run fails on the very first
+      # call (the wnba/teams 403, 2026-08-16). That block is transient and usually clears
+      # within the hour, so wait it out rather than going red — retry the whole fetch
+      # every 15 minutes, up to an hour. A genuine script/data bug fails on the first
+      # attempt and every retry alike, so this only ever delays a real failure by ~an
+      # hour; it never hides one. The refresh job no longer holds the `pages` lock (only
+      # the deploy job does), so idling here doesn't stall CI's deploys. Season defaults
+      # to the committed teams.js SEASON — do NOT pass --season (PLAYBOOK §8).
       - name: Regenerate schedule, players, and logos
-        run: node scripts/fetch-schedule.mjs # season defaults to the committed teams.js SEASON
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if node scripts/fetch-schedule.mjs; then exit 0; fi
+            [ "$attempt" = 5 ] && break
+            echo "::warning::fetch attempt $attempt failed (ESPN may be blocking the runner); retrying in 15 min…"
+            sleep 900
+          done
+          echo "::error::fetch still failing after 5 attempts over ~1 hour"
+          exit 1
 
       - name: Summarize what changed
         id: diff
