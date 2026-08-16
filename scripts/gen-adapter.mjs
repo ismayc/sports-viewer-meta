@@ -17,8 +17,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const SITE = 'https://site.api.espn.com/apis/site/v2/sports'
-const CORE = 'https://site.api.espn.com/apis/v2/sports'
+// site.web.api, not site.api — site.api 403s every request from a datacenter IP, so a
+// generated adapter pointed at it cannot refresh from CI. See scripts/lib/espn.mjs.
+const SITE = 'https://site.web.api.espn.com/apis/site/v2/sports'
+const CORE = 'https://site.web.api.espn.com/apis/v2/sports'
 
 const arg = (k, d) => {
   const i = process.argv.indexOf(`--${k}`)
