@@ -282,6 +282,16 @@ conference sweeps.
   refresh its own group, and put the shared `pages` lock job-level on the deploy jobs
   only. Diagnostic signature: main runs "cancelled" at the exact seconds PR pushes
   arrived.
+- **A refresh workflow that pushes to main must rebase and retry.** The job checks main
+  out, spends a couple of minutes rebuilding committed data, tests it, then pushes. A bare
+  `git push` loses that entire run to anything that lands on main in the window: it dies
+  with `! [rejected] main -> main (fetch first)` and the freshly fetched data is discarded
+  until the next scheduled run. It bit the WNBA viewer on 2026-08-29, where a hand push
+  landed one second before the bot's. Loop the push up to three times, rebasing onto
+  `origin/main` between attempts and unshallowing the depth-1 checkout as needed. Safe
+  because the commit touches only generated paths nothing else writes; let a real content
+  conflict fail the run rather than force-pushing. Diagnostic signature: the fetch, the
+  diff and the full test gate all succeed and only the commit step is red.
 - **`base: './'`** so one `dist/` serves a domain root and a subpath.
 - **Mirror logos locally** through ESPN's combiner at 160px (~8KB vs ~40KB), render both
   light and dark `<img>`, and let CSS pick — no flicker, no re-request on theme change.
