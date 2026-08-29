@@ -154,6 +154,15 @@ League identity is scattered (PLAYBOOK §10 debt #2) — change all of it:
   the **real** committed data and assert the known-true facts (2026 champion is Michigan; every
   region has 15 non-projected slots; each Round-of-64 seed pair sums to 17). Delete tests for
   removed features; do not weaken the survivors.
+- **Repo-level guards** (`test/guards.test.js`): every repo in the family carries one, so it
+  arrives with the rsync already written for the SOURCE app and will fail until you retarget it.
+  Set `OWN` to the new storage prefix, add that prefix to the `FAMILY` registry (which is
+  repeated in every sibling, so add it to all of them), and update the generated-data file list.
+  The guards assert: the ESPN host is `site.web.api` and never `site.api` (which 403s on a
+  browser User-Agent with no CORS headers), `scripts/` imports only Node built-ins and in-repo
+  source, localStorage keys carry this app's prefix and never a sibling's, and generated data
+  keeps its do-not-edit banner. The scripts-runtime rule is also a grep in `ci.yml`; the test
+  version is the one that runs locally before you push.
 - **CI** (`.github/workflows/`): `ci.yml` (test → coverage badge → build → deploy Pages, Netlify
   gated on its token, a `scripts-runtime` grep that enforces Node-built-ins-only under `scripts/`),
   `node-guard.yml` (the shared `ismayc/gha-guards` reusable workflow), and `refresh-data.yml`
@@ -183,5 +192,6 @@ family page as soon as it is registered.
 [ ] Adapted standings/bracket derivation; trimmed views + urlState VALID_VIEWS
 [ ] Re-skinned identity: storage prefix, copy, URLs, accent, icon + og-image
 [ ] Tests point at real data and pass; CI + refresh cron scoped to the season
+[ ] test/guards.test.js retargeted to the new prefix; prefix added to every sibling's FAMILY
 [ ] Registered in the hub's viewers.js
 ```
