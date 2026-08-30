@@ -67,12 +67,16 @@ imply: pin to the zone that makes day headings stable for **your** competition. 
 right only when no game crosses a UTC day boundary, which is why it suits a Berlin
 tournament tipping 09:30 to 19:00 UTC and would not suit an Australian one.
 
-**Serial or parallel test files.** Only `premier-league`, `fiba-womens-world-cup-viewer`
-and the hub set `fileParallelism: false`. The other nine run parallel and are exposed to
-the v8 coverage-merge race that intermittently drops a function from the 100% gate. FIBA's
-config comment claimed this was "the same fix the sibling viewers carry"; that was untrue
-when written and is corrected now. Whether to serialize the other nine is an open call:
-it costs wall-clock time in exchange for a deterministic gate.
+**Serial test files, everywhere.** All twelve repos set `fileParallelism: false`, and the
+audit asserts it, so a new viewer should keep it rather than treat it as a slow default to
+optimize away. Vitest's v8 provider merges each worker's coverage after the run, and with
+files in parallel that merge races. It surfaced three times here as three apparently
+different problems: an ENOENT reading a departed worker's temp JSON, an unstable percentage
+between identical runs, and a function reported uncovered while its own test demonstrably
+exercises it. Measured cost on 2026-08-30, on `world-cup-viewer` (the largest suite): 35s
+parallel against 132s serial on a many-core laptop, but roughly a wash on a 2-core CI
+runner, where the parallel run is already CPU-bound. The place the flake actually bit was
+CI, so that trade is worth taking.
 
 **Your localStorage prefix, and the twelve files that must learn it.** Prefixes in use:
 `nba:` `wnba:` `nfl:` `pl:` `wc2026:` `wwc:` `euros:` `copa:` `fwwc:` `mmm:` `mmw:` `st:`.
@@ -144,7 +148,7 @@ rather than a list of things to build:
 - **Coverage over `netlify/functions/`.** All eleven viewers now include it at the same 100%
   thresholds as `src`. Before this, six functions had no tests at all and the best-tested one
   was at 76% of branches, all in the defensive arms a malformed payload reaches.
-- **A cross-repo audit.** `scripts/audit-family.mjs` asserts nine invariants across all twelve
+- **A cross-repo audit.** `scripts/audit-family.mjs` asserts ten invariants across all twelve
   repos, each one something a real incident violated. Run it before believing any claim that
   a rollout is family-wide. It found two real faults on its first run.
 

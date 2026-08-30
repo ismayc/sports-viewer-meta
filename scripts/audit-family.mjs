@@ -198,7 +198,23 @@ if (tally.size > 1) {
 }
 
 // ---------------------------------------------------------------------------
-// 9. The serverless functions are inside the coverage gate
+// 9. Test files run one at a time
+//
+// Vitest's v8 provider merges each worker's coverage after the run, and with
+// files in parallel that merge races. Three symptoms, one fault: an ENOENT
+// reading a departed worker's temp JSON, an unstable percentage between
+// identical runs, and a function reported uncovered while its own test
+// exercises it. All three were diagnosed as separate problems first.
+// ---------------------------------------------------------------------------
+for (const repo of APPS) {
+  const vite = read(repo, 'vite.config.js')
+  if (vite && !/fileParallelism:\s*false/.test(vite)) {
+    fail(repo, 'file-parallelism', 'vite.config.js does not set fileParallelism: false')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 10. The serverless functions are inside the coverage gate
 // ---------------------------------------------------------------------------
 for (const repo of APPS) {
   if (!existsSync(join(FAMILY, repo, 'netlify/functions'))) continue
