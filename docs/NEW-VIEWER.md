@@ -52,6 +52,26 @@ cd the-new-viewer && rm -rf .netlify
 The copy has **no `.git`** — it becomes its own independent GitHub repo later (`git init`,
 new remote under `ismayc/`). It keeps the sibling's history in neither place; that is intended.
 
+**Read [`LINEAGES.md`](LINEAGES.md) before you pick the source.** The table above chooses a
+sibling by competition shape, but that choice also picks your data model, your field names,
+your calendar function's data source, and your verification tooling, and the two lineages
+disagree on all of them (`GAMES`/`tip`/`home`/`away` against `MATCHES`/`ko`/`t1`/`t2`).
+Crossing lineages later means rewriting the data model by hand.
+
+Then, immediately after the `rsync` and before any other edit, sweep out the source app's
+identity. Every viewer in this family has shipped at least one artifact that still described
+the app it was copied from, including config comments, a storage-prefix registry, a
+`.claude/skills` file, and a champion banner wired to another tournament's match number:
+
+```bash
+cd the-new-viewer
+grep -rniE 'nba|wnba|nfl|premier|world.cup|euros|copa|march.madness|fiba' \
+  --include='*.js' --include='*.jsx' --include='*.json' --include='*.md' --include='*.yml' \
+  src scripts test netlify .github .claude vite.config.js index.html | grep -v src/data
+```
+
+Everything that hit is either a real reference to change or a lie about what this app is.
+
 ## 2. Swap the ESPN path (the ~4 hardcoded spots)
 
 Grep for the old league and change every hit to your `{espnPath}`:
