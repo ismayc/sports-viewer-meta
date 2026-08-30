@@ -126,14 +126,29 @@ The cheap defense is a single grep for every sibling's name and prefix immediate
 
 ---
 
-## 5. What is missing family-wide, as of this scan
+## 5. What was missing family-wide, and what closed it
 
-Worth knowing before you assume the scaffold provides it:
+This section listed three gaps when the scan ran on the morning of August 30, 2026. All
+three were closed the same day, so it is now a description of what a new viewer INHERITS
+rather than a list of things to build:
 
-- **No repo has any post-deploy check.** Nothing anywhere fetches an absolute production URL,
-  so a dead host, a wrong host answering 200 with another tournament's data, or a broken
-  serverless function is invisible to the entire gate.
-- **Coverage stops at `src/**`.** `netlify/functions/` is outside every repo's
-  `coverage.include`, so a function can carry untested branches while the badge says 100%.
-- **`scripts/check-fetch-sync.mjs` is the only cross-repo check that exists,** it covers one
-  vendored file, and nothing runs it automatically.
+- **A post-deploy check.** `scripts/smoke-prod.mjs`, vendored into all twelve repos and run
+  by a `smoke` job after the deploy. It reads what the repo claims about itself from
+  `index.html` and `CalendarModal.jsx`, then checks it against production: every card tag
+  present and answering 200, `og:image` actually an image rather than the SPA catch-all,
+  `coverage.json` parseable, and the calendar feed real iCalendar with events in it. For a
+  feed that fetches its own upstream it also compares every `DTSTART` against the committed
+  schedule. Known, explained divergences live in `scripts/smoke-known.json`; the recurring
+  one is a DELAYED game, where the committed schedule holds the actual start and the
+  upstream keeps the scheduled one.
+- **Coverage over `netlify/functions/`.** All eleven viewers now include it at the same 100%
+  thresholds as `src`. Before this, six functions had no tests at all and the best-tested one
+  was at 76% of branches, all in the defensive arms a malformed payload reaches.
+- **A cross-repo audit.** `scripts/audit-family.mjs` asserts nine invariants across all twelve
+  repos, each one something a real incident violated. Run it before believing any claim that
+  a rollout is family-wide. It found two real faults on its first run.
+
+The standing rule these leave behind: **when a rollout lands, add its invariant to
+`audit-family.mjs`.** That is what turns "I fixed it everywhere" from a memory into a
+command, and this family's most repeated failure is a rollout that stopped short and then
+got described as finished.

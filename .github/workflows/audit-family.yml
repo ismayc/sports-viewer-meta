@@ -1,0 +1,67 @@
+name: Audit the family
+
+# Assert the invariants across every repo at once, on a schedule and on demand.
+#
+# The value is in catching a rollout that stopped short. This family's most
+# repeated failure is a fix that landed in some repos, got recorded as
+# "family-wide", and was never checked again; see docs/LINEAGES.md and
+# scripts/audit-family.mjs for the incidents each check comes from.
+#
+# NOT a substitute for running it locally. GitHub starts these schedules between
+# half an hour and eleven hours late and sometimes drops one entirely (measured
+# across this family on 2026-08-30), so treat a missing run as normal and use
+# workflow_dispatch when you actually need an answer.
+
+on:
+  schedule:
+    - cron: '40 8 * * 1' # Mondays, well off the hour
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Check every repo's invariants
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the meta repo
+        uses: actions/checkout@v6
+        with:
+          path: sports-viewer-meta
+
+      # The audit reads sibling working trees, so they have to be beside it in
+      # the same layout as the container on a laptop. All public, so the default
+      # token is enough and no PAT is involved.
+      - name: Check out every app repo beside it
+        shell: bash
+        run: |
+          set -euo pipefail
+          for slug in nba-schedule wnba-schedule nfl-schedule premier-league \
+                      world-cup-viewer womens-world-cup-viewer football-euros-viewer \
+                      copa-america-viewer fiba-womens-world-cup-viewer \
+                      mens-march-madness womens-march-madness sports-trackers; do
+            case "$slug" in
+              nba-schedule)          dir=the-nba-schedule ;;
+              wnba-schedule)         dir=the-wnba-schedule ;;
+              nfl-schedule)          dir=the-nfl-schedule ;;
+              mens-march-madness)    dir=the-mens-march-madness ;;
+              womens-march-madness)  dir=the-womens-march-madness ;;
+              sports-trackers)       dir=hub ;;
+              *)                     dir="$slug" ;;
+            esac
+            git clone --depth 1 --quiet "https://github.com/ismayc/$slug.git" "$dir"
+          done
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # No npm ci: the script uses Node built-ins only.
+      - name: Audit
+        shell: bash
+        run: node sports-viewer-meta/scripts/audit-family.mjs
