@@ -9,6 +9,7 @@
   "scripts": {
     "smoke": "node test/smoke.mjs",
     "gen:adapter": "node scripts/gen-adapter.mjs",
-    "check:fetch-sync": "node scripts/check-fetch-sync.mjs"
+    "check:fetch-sync": "node scripts/check-fetch-sync.mjs",
+    "rehearse": "node scripts/rehearse-clock.mjs"
   }
 }

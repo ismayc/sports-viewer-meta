@@ -1,6 +1,6 @@
 # sports-viewer-meta
 
-The shared framework behind a family of seven sports viewers (plus their hub page).
+The shared framework behind a family of eleven sports viewers (plus their hub page).
 It was extracted from the first three builds so the later ones didn't start from
 scratch — and every viewer since has been built by the procedure in
 [`docs/NEW-VIEWER.md`](docs/NEW-VIEWER.md).
@@ -20,11 +20,21 @@ things-that-looked-green-but-weren't.
 | [`nba-schedule`](https://github.com/ismayc/nba-schedule) | [site](https://ismayc.github.io/nba-schedule/) | Conference playoff bracket; the base the March Madness viewers copied |
 | [`mens-march-madness`](https://github.com/ismayc/mens-march-madness) | [site](https://ismayc.github.io/mens-march-madness/) | NCAA D-I single-elimination tournament bracket (2026, completed) |
 | [`womens-march-madness`](https://github.com/ismayc/womens-march-madness) | [site](https://ismayc.github.io/womens-march-madness/) | Same tournament shape as the men's viewer, women's 2026 bracket |
+| [`womens-world-cup-viewer`](https://github.com/ismayc/womens-world-cup-viewer) | [site](https://ismayc.github.io/womens-world-cup-viewer/) | FIFA Women's World Cup 2023, completed |
+| [`football-euros-viewer`](https://github.com/ismayc/football-euros-viewer) | [site](https://ismayc.github.io/football-euros-viewer/) | Euro 2024, completed |
+| [`copa-america-viewer`](https://github.com/ismayc/copa-america-viewer) | [site](https://ismayc.github.io/copa-america-viewer/) | Copa América 2024, completed |
+| [`fiba-womens-world-cup-viewer`](https://github.com/ismayc/fiba-womens-world-cup-viewer) | [site](https://ismayc.github.io/fiba-womens-world-cup-viewer/) | FIBA Women's World Cup 2026, Berlin. Four groups of four, top three through, group winner byes to the quarters |
 | [`sports-trackers`](https://github.com/ismayc/sports-trackers) (hub) | [site](https://ismayc.github.io/sports-trackers/) | The family page — which viewers have games today, with deep links |
 
-The March Madness pair is the newest shape: built from `nba-schedule` with
-`world-cup-viewer`'s knockout bracket grafted in, walking the scoreboard's
+The March Madness pair introduced the single-elimination shape: built from `nba-schedule`
+with `world-cup-viewer`'s knockout bracket grafted in, walking the scoreboard's
 `seasontype=3` feed and asserting the 67-game tournament total.
+
+`fiba-womens-world-cup-viewer` is the newest, and the first to combine both shapes: a
+group phase whose top three advance, feeding a knockout bracket in which the group winner
+skips a round. It is also the only one that was live during a tournament while this
+framework was being maintained, which is where most of PLAYBOOK §6's newer entries came
+from.
 
 ---
 
@@ -103,11 +113,34 @@ core/
 scripts/
   lib/espn.mjs       shared fetch layer — both season strategies, event normaliser
   gen-adapter.mjs    scaffold an adapter with REAL group data
+  audit-family.mjs   the invariants this family keeps re-breaking, every repo at once
+  rehearse-clock.mjs every sibling's own coverage gate, run at a FUTURE instant
 templates/           ci.yml, node-guard.yml, refresh-data.yml, netlify.toml, vite.config.js
 test/smoke.mjs       proves one engine serves all three models against the live API
 test/time.mjs        offline: locale + week start really do come from the adapter
+test/clock-shim.js   the setup file rehearse-clock.mjs prepends to move "now"
 docs/PLAYBOOK.md     ← the valuable part
 ```
+
+## Does it still pass tomorrow?
+
+Every app here reads two moving things: a committed snapshot that a refresh workflow
+rewrites several times a day, and `Date.now()`. A green suite says the tests pass against
+today's data on today's date, which is a smaller claim than it looks, and the second half
+is the one that gets missed.
+
+```bash
+npm run rehearse                                          # the whole family, a default ladder
+node scripts/rehearse-clock.mjs --repo the-nba-schedule \
+  --at 2026-10-20 --at 2027-06-20                         # one repo, dates that mean something
+```
+
+It runs each repo's own coverage command at the chosen instant with the committed data
+untouched, so anything it reports is clock rot. On the day it was written it found seven
+tests in the FIBA viewer, three in the NFL viewer, three plus a dried-up branch in the NBA
+viewer, two in the WNBA viewer (whose coverage gate was already dipping that afternoon),
+and a branch in each March Madness repo. Two of those repos had already been "fixed" by a
+data-only sweep the day before. `docs/PLAYBOOK.md` §6 has the mechanisms.
 
 ## Starting a new league
 

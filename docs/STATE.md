@@ -1,6 +1,36 @@
-# State — 2026-08-10
+# State — 2026-09-05
 
 Where the extraction stands, what is known to be wrong, and what to do next.
+
+---
+
+## 2026-09-05 — clock rehearsal (rehearse-clock.mjs)
+
+A viewer reads two moving things: the committed snapshot a refresh rewrites several times
+a day, and `Date.now()`. The 2026-09-04 sweep injected future SCORES into each repo's data
+and fixed what broke. It found real failures and missed the whole second half, because
+freezing a board does nothing about the clock.
+
+- **`scripts/rehearse-clock.mjs`** (`npm run rehearse`) runs a sibling's own coverage
+  command at a chosen instant with its committed data untouched. `--repo` and `--at` narrow
+  it, `--json` gives machine output, and it exits 1 when a repo is exposed, 2 when one
+  could not be checked at all, so it can gate a job without the two being confused.
+- **`test/clock-shim.js`** is the setup file it prepends: it replaces `globalThis.Date` so
+  `new Date()` and `Date.now()` return `SIM_NOW`, leaving every explicit date form alone.
+  It must load BEFORE the repo's own `test/setup.js`, or a test's own `vi.useRealTimers()`
+  slips back to today.
+- **Findings, all fixed the same day.** fiba (7 tests: six on Sunday September 6, one on
+  September 9), the-wnba-schedule (2, and its coverage gate was already dipping below 100%
+  that afternoon), the-nfl-schedule (3 from September 15, 11 by February 2027),
+  the-nba-schedule (3 plus a dried-up branch, from opening night), both march-madness
+  repos (branch coverage only, September 2027). premier-league, world-cup,
+  womens-world-cup, euros, copa and the hub were clean at every date.
+- **the-nfl-schedule and the-nba-schedule had already been "fixed" by the data sweep** and
+  were still exposed. That is the reason this script exists alongside the data one.
+- **New fixture:** `the-nba-schedule/test/fixtures/preseason-2627.js`, a verbatim freeze of
+  the 1200 unplayed 2026-27 rows, bookending `season2526.js`.
+- Known gap: this rehearses the CLOCK only. The data dimension is still a per-repo script
+  written by hand, and the two want merging eventually.
 
 ---
 

@@ -178,6 +178,9 @@ Other landmines:
   doesn't blank the overlay and a late kickoff still resolves for a viewer a day ahead.
 - **Drop past days *whole*, not by tip-off time.** A game that started at 1pm still
   belongs to today at 5pm.
+- **Every one of those behaviors is a test that can rot on a quiet day.** A suite that
+  reads `Date.now()` has an expiry date whether or not anyone notices. See §6,
+  *Rehearse the calendar, not just the data*.
 
 ---
 
@@ -216,6 +219,46 @@ The generalisation: **verify the effect, never the report of the effect.**
   in-progress game.
 - **Measure layout, don't eyeball it.** `scrollWidth - clientWidth` across every view ×
   theme × viewport found horizontal overflow that screenshots had not made obvious.
+
+### Rehearse the calendar, not just the data
+
+Every viewer here reads **two** moving things: a committed snapshot that a refresh
+workflow rewrites several times a day, and `Date.now()`. A green suite says the tests pass
+against today's data on today's date, which is a much smaller claim than it looks.
+
+```bash
+node sports-viewer-meta/scripts/rehearse-clock.mjs                       # the whole family
+node sports-viewer-meta/scripts/rehearse-clock.mjs --repo the-nba-schedule   --at 2026-10-20 --at 2027-06-20                                        # one repo, real dates
+```
+
+It runs each repo's own coverage gate at a chosen instant with the committed data
+untouched, so what it finds is clock rot and nothing else.
+
+- **Freezing the board fixes half the problem.** Both `nfl-schedule` and `nba-schedule`
+  had already been given frozen preseason fixtures by an earlier data-only sweep, and both
+  were still exposed. "Upcoming" is a comparison against `Date.now()`, so a frozen board
+  still slides into the past as the calendar moves.
+- **The failures are ordinary UI behavior, not clever code.** A week view opens on the
+  calendar week containing today, and weeks run Sunday to Saturday, so six FIBA tests
+  asserting on a September 4 game were green on the 5th and red on Sunday the 6th with a
+  byte-identical board. An app collapses a past day's section, so an App test looking for
+  a September 8 card died on the 9th.
+- **Run the COVERAGE command, not the tests.** Two of the six findings were branch-coverage
+  drops with a fully green suite: a countdown renders only while its fixture's tip is
+  ahead of now, so that arm becomes unreachable and the 100% gate fails at 99.9%.
+- **Pin per FILE, not per test.** Three repos pinned test by test and stayed exposed
+  anyway, twice in the FIBA repo alone. Put `vi.useFakeTimers({ toFake: ['Date'] })` plus
+  `vi.setSystemTime(NOW)` in the file's `beforeEach`, hand it back in `afterEach`, and let
+  the one test that wants a different instant override. Fake **only** `Date`, so `waitFor`,
+  `userEvent` and polling tests keep working.
+- **Derive from the clock or from the data, not from one about the other.** An NBA test
+  chose its expectation with `GAMES.some((g) => g.score)` while the app chose the card's
+  state from `Date.now()`. A game with no committed score whose tip has passed reads as
+  finished, so the two disagreed and the "empty" bucket had 56 cards in it.
+- **A simulation that is not faithful will lie to you.** Building a rehearsal board with
+  the app's own bracket resolver produced half-resolved knockout pairs, which the real
+  fetch script cannot write (it fills both sides from one ESPN event, or neither). The
+  resulting failure was a correct integrity test rejecting a bad synthetic row.
 
 ---
 

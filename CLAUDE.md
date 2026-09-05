@@ -57,7 +57,14 @@ Two rules make the merge correct, and both are load-bearing:
 ```bash
 node scripts/gen-adapter.mjs --league nba --path basketball/nba --season 2026
 node test/smoke.mjs     # hits the live API; proves all three standings models
+node scripts/audit-family.mjs          # invariants this family keeps re-breaking
+node scripts/rehearse-clock.mjs        # run every sibling's gate at future instants
 ```
+
+A suite here can go red on a day nobody commits anything: the apps read a committed
+snapshot AND `Date.now()`, and freezing the snapshot only fixes the first. `npm run
+rehearse` shifts the clock and runs each repo's own coverage gate against its real
+committed data. PLAYBOOK §6 has the six incidents that led to it.
 
 ## State
 
