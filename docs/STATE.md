@@ -29,6 +29,11 @@ freezing a board does nothing about the clock.
   were still exposed. That is the reason this script exists alongside the data one.
 - **New fixture:** `the-nba-schedule/test/fixtures/preseason-2627.js`, a verbatim freeze of
   the 1200 unplayed 2026-27 rows, bookending `season2526.js`.
+- **`.github/workflows/rehearse-clock.yml`** runs it weekly (Wednesdays), one matrix job
+  per repo so the sweep is ~10 minutes of wall clock, and opens ONE issue while it stays
+  open rather than filing every week. A repo that reports no artifact at all counts as a
+  finding, not a pass: twelve clean sweeps and one clean sweep plus eleven repos that
+  never ran look identical if you only read the FAIL lines.
 - Known gap: this rehearses the CLOCK only. The data dimension is still a per-repo script
   written by hand, and the two want merging eventually.
 

@@ -135,6 +135,10 @@ node scripts/rehearse-clock.mjs --repo the-nba-schedule \
   --at 2026-10-20 --at 2027-06-20                         # one repo, dates that mean something
 ```
 
+`.github/workflows/rehearse-clock.yml` also runs it every Wednesday and opens an issue
+when anything is exposed, because this is the one failure class that arrives with no
+commit behind it and so nothing in a repo's own CI can see it coming.
+
 It runs each repo's own coverage command at the chosen instant with the committed data
 untouched, so anything it reports is clock rot. On the day it was written it found seven
 tests in the FIBA viewer, three in the NFL viewer, three plus a dried-up branch in the NBA

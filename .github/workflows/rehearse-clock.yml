@@ -1,0 +1,249 @@
+name: Rehearse the clock
+
+# Run every viewer's own coverage gate at a set of FUTURE instants, with its committed
+# data untouched, and open one issue when any of them is exposed.
+#
+# WHY A SCHEDULE. This is the one class of failure that arrives with no commit behind it.
+# Every app reads two moving things: a snapshot the refresh workflow rewrites several
+# times a day, and Date.now(). CI answers "do the tests pass against today's data on
+# today's date", which is a smaller claim than it looks, so nothing in a repo's own CI
+# can see this coming. Real examples, all on 2026-09-05:
+#
+#   * six FIBA tests green on September 5 and red on Sunday the 6th, board byte-identical,
+#     because the week view opens on the calendar week containing today
+#   * the WNBA viewer's coverage gate already dipping below 100% that afternoon, hours
+#     after a refresh had passed the same gate
+#   * the NFL and NBA viewers exposed from their own opening nights, both of them having
+#     been "fixed" the day before by a sweep that froze their data and not their clock
+#
+# See sports-viewer-meta/scripts/rehearse-clock.mjs and docs/PLAYBOOK.md §6.
+#
+# NOT a substitute for running it locally before you push a test change. GitHub starts
+# these schedules between half an hour and eleven hours late and sometimes drops one
+# entirely (measured across this family on 2026-08-30), so treat a missing run as normal
+# and use workflow_dispatch when you actually need an answer.
+#
+# Quiet by design: a clean sweep writes a line to the job summary and nothing else.
+
+on:
+  schedule:
+    # Wednesdays, well off the hour, and a different day from "Audit the family" so a red
+    # inbox is unambiguous about which one fired.
+    - cron: '25 9 * * 3'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Its own group, never a shared name: a static group shared between workflows is what let
+# a busy PR cancel main's deploy in this family on 2026-08-13. Queue rather than cancel,
+# so a dispatch during a scheduled run does not throw away a half-finished sweep.
+concurrency:
+  group: rehearse-clock
+  cancel-in-progress: false
+
+jobs:
+  rehearse:
+    name: ${{ matrix.dir }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One repo per job so the sweep is ~10 minutes of wall clock instead of an hour,
+      # and so one exposed repo does not hide the state of the other eleven.
+      fail-fast: false
+      matrix:
+        include:
+          - { dir: the-nba-schedule, slug: nba-schedule }
+          - { dir: the-wnba-schedule, slug: wnba-schedule }
+          - { dir: the-nfl-schedule, slug: nfl-schedule }
+          - { dir: premier-league, slug: premier-league }
+          - { dir: world-cup-viewer, slug: world-cup-viewer }
+          - { dir: womens-world-cup-viewer, slug: womens-world-cup-viewer }
+          - { dir: football-euros-viewer, slug: football-euros-viewer }
+          - { dir: copa-america-viewer, slug: copa-america-viewer }
+          - { dir: fiba-womens-world-cup-viewer, slug: fiba-womens-world-cup-viewer }
+          - { dir: the-mens-march-madness, slug: mens-march-madness }
+          - { dir: the-womens-march-madness, slug: womens-march-madness }
+          - { dir: hub, slug: sports-trackers }
+    steps:
+      - name: Check out the meta repo
+        uses: actions/checkout@v6
+        with:
+          path: sports-viewer-meta
+
+      # The rehearsal reads a sibling working tree, so it has to sit beside the meta repo
+      # in the same layout as the container on a laptop. All public, so the default token
+      # is enough and no PAT is involved. Full depth is unnecessary; the committed data as
+      # it stands on main is the whole input.
+      - name: Check out ${{ matrix.slug }} beside it
+        uses: actions/checkout@v6
+        with:
+          repository: ismayc/${{ matrix.slug }}
+          path: ${{ matrix.dir }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      # The app's own devDependencies, because this runs the app's own coverage command.
+      # (The meta repo itself still needs no install: the script is Node built-ins only.)
+      - name: Install ${{ matrix.dir }}
+        shell: bash
+        run: npm ci
+        working-directory: ${{ matrix.dir }}
+
+      # `shell: bash` for the pipefail it brings. GitHub's default is `bash -e`, whose
+      # exit status is the LAST command in a pipe (tee, which always succeeds), so
+      # without this a failing rehearsal would report success and the report job below
+      # would find nothing to file. That exact shape hid a real outage in this family on
+      # 2026-08-16.
+      - name: Rehearse
+        shell: bash
+        run: |
+          node sports-viewer-meta/scripts/rehearse-clock.mjs --repo "$DIR" \
+            | tee "rehearsal-$DIR.txt"
+        env:
+          DIR: ${{ matrix.dir }}
+
+      # if: always() so an exposed repo's result survives the failing step above; that
+      # file is the only thing the report job has to name what broke.
+      - name: Keep the result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rehearsal-${{ matrix.dir }}
+          path: rehearsal-${{ matrix.dir }}.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  report:
+    name: File an issue if anything is exposed
+    needs: rehearse
+    # always(), or a failing matrix skips the very job that exists to report it.
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write # the default token is read-only, so opening an issue needs this
+    steps:
+      # continue-on-error, because "no artifacts at all" has to reach the summary step
+      # as a finding rather than killing the job that exists to report findings.
+      - name: Collect every repo's result
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rehearsal-*
+          merge-multiple: true
+          path: results
+
+      - name: Summarize
+        id: sum
+        shell: bash
+        env:
+          EXPECTED: '12'
+        run: |
+          # nullglob and an array, not `ls | wc -l`: under `bash -eo pipefail` a glob that
+          # matches nothing would abort the step, and this step failing silently is the
+          # one outcome that must not happen.
+          shopt -s nullglob
+          files=(results/*.txt)
+          COUNT=${#files[@]}
+
+          FAILED=''
+          SKIPPED=''
+          if [ "$COUNT" -gt 0 ]; then
+            FAILED=$(grep -h '^FAIL' "${files[@]}" || true)
+            SKIPPED=$(grep -h '^SKIP' "${files[@]}" || true)
+          fi
+
+          # A repo that reported nothing at all is NOT a pass. Counting the artifacts is
+          # what separates "twelve clean sweeps" from "one clean sweep and eleven repos
+          # that never ran", which look identical if you only read the FAIL lines.
+          CLEAN=true
+          if [ -n "$FAILED" ] || [ -n "$SKIPPED" ] || [ "$COUNT" -ne "$EXPECTED" ]; then
+            CLEAN=false
+          fi
+
+          {
+            echo "## Clock rehearsal"
+            echo
+            echo "Reported by $COUNT of $EXPECTED repos."
+            echo
+            if [ "$CLEAN" = true ]; then
+              echo "Every repo passed its own coverage gate at every instant."
+            else
+              echo '```'
+              if [ -n "$FAILED" ]; then echo "$FAILED"; fi
+              if [ -n "$SKIPPED" ]; then echo "$SKIPPED"; fi
+              if [ "$COUNT" -ne "$EXPECTED" ]; then
+                echo "(only $COUNT of $EXPECTED repos reported a result at all)"
+              fi
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          {
+            echo 'body<<REHEARSAL_EOF'
+            if [ -n "$FAILED" ]; then echo "$FAILED"; fi
+            if [ -n "$SKIPPED" ]; then echo "$SKIPPED"; fi
+            if [ "$COUNT" -ne "$EXPECTED" ]; then
+              echo "(only $COUNT of $EXPECTED repos reported a result at all)"
+            fi
+            echo 'REHEARSAL_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+          echo "clean=$CLEAN" >> "$GITHUB_OUTPUT"
+
+      # One OPEN issue at a time. A weekly job that files every week would train you to
+      # ignore it; this re-files only once the previous one is closed.
+      - name: File an issue
+        if: steps.sum.outputs.clean == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FINDINGS: ${{ steps.sum.outputs.body }}
+        run: |
+          TITLE="Clock rehearsal: a viewer will go red on its own"
+          if [ -n "$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number')" ]; then
+            echo "Already open, so not re-filing." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Body via a file, not a heredoc inside $( ): an apostrophe in the prose is
+          # enough to break the latter, and it has.
+          cat > /tmp/issue-body.md <<EOF
+          A scheduled clock rehearsal found at least one viewer whose suite fails at a
+          future instant with its committed data untouched. Nothing has to be committed
+          for this to happen: the calendar arriving is enough.
+
+          \`\`\`
+          $FINDINGS
+          \`\`\`
+
+          Run: $RUN_URL
+
+          ## What to do
+
+          1. Reproduce locally, which is the same command the job ran:
+             \`\`\`
+             node sports-viewer-meta/scripts/rehearse-clock.mjs --repo <dir> --at <YYYY-MM-DD>
+             \`\`\`
+          2. Read the failure. It is usually a test asserting on a fixture game while the
+             component asks \`Date.now()\` which week, day or bucket that game belongs to.
+          3. Pin the clock for the whole FILE, not the one test: pinning test by test has
+             failed twice in this family. See \`docs/PLAYBOOK.md\` §6.
+
+          A \`SKIP\` line, or a count below 12, means a repo could not be checked at all.
+          That is not a pass and should be chased first.
+
+          Filed by \`.github/workflows/rehearse-clock.yml\`.
+          EOF
+          gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
+
+      # The matrix result is what actually gates: a green report job over a red matrix
+      # would be exactly the "looks green but isn't" shape this repo keeps writing down.
+      - name: Fail the run if anything is exposed
+        if: steps.sum.outputs.clean == 'false'
+        shell: bash
+        run: exit 1

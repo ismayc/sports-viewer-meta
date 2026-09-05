@@ -66,10 +66,11 @@ const APPS = [
   'the-mens-march-madness', 'the-womens-march-madness', 'hub',
 ]
 
-// A generic ladder: tomorrow, a fortnight, a month and a half, a season away, a year
-// away. Enough to catch "the week rolled over", "the season started", "the season
-// ended" and "the off-season" without knowing which sport this is.
-const LADDER_DAYS = [1, 14, 45, 150, 365]
+// A generic ladder, denser at the near end because that is where a finding is urgent:
+// a break three days out gives you three days. Enough rungs to catch "the week rolled
+// over", "the season started", "the season ended" and "the off-season" without knowing
+// which sport this is. The FIBA break that prompted all this was two days out.
+const LADDER_DAYS = [1, 3, 8, 30, 90, 180, 365]
 
 function parseArgs(argv) {
   const repos = []
