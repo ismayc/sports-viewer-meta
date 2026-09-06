@@ -113,7 +113,7 @@ jobs:
       # file is the only thing the report job has to name what broke.
       - name: Keep the result
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: rehearsal-${{ matrix.dir }}
           path: rehearsal-${{ matrix.dir }}.txt
@@ -133,7 +133,7 @@ jobs:
       # as a finding rather than killing the job that exists to report findings.
       - name: Collect every repo's result
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: rehearsal-*
           merge-multiple: true
