@@ -6,8 +6,11 @@ name: Rehearse the clock
 # WHY A SCHEDULE. This is the one class of failure that arrives with no commit behind it.
 # Every app reads two moving things: a snapshot the refresh workflow rewrites several
 # times a day, and Date.now(). CI answers "do the tests pass against today's data on
-# today's date", which is a smaller claim than it looks, so nothing in a repo's own CI
-# can see this coming. Real examples, all on 2026-09-05:
+# today's date", which is a smaller claim than it looks. Since 2026-09-06 the five
+# refresh-bearing repos (NFL, NBA, WNBA, PL, FIBA) also run this tool as a per-push CI
+# job, beside one that fetches live data and runs the gate on it; for the other seven
+# repos this weekly sweep is still the only thing that can see it coming. Real examples,
+# all on 2026-09-05:
 #
 #   * six FIBA tests green on September 5 and red on Sunday the 6th, board byte-identical,
 #     because the week view opens on the calendar week containing today

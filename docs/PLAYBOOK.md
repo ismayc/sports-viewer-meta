@@ -234,6 +234,17 @@ node sports-viewer-meta/scripts/rehearse-clock.mjs --repo the-nba-schedule   --a
 It runs each repo's own coverage gate at a chosen instant with the committed data
 untouched, so what it finds is clock rot and nothing else.
 
+Since September 6, 2026 the five refresh-bearing repos (NFL, NBA, WNBA, PL, FIBA) run
+this as a per-push CI job, `Rehearse the clock`, beside a second job, `Gate against the
+next refresh`, that fetches what the next refresh would fetch and runs the gate on it.
+That second job is the data half of the rehearsal and the only check that would have
+caught the NFL viewer's September 6 break: the first week-1 refresh failed on two tests
+asserting the player table was empty, two days after a hand-run rehearsal had flagged
+them. A rehearsal that is not a gate is a report. Neither job is a `needs` of deploy,
+so a calendar rollover cannot hold a hotfix hostage; they go red on the run. The weekly
+sweep in `.github/workflows/rehearse-clock.yml` remains the only rehearsal for the other
+seven repos.
+
 - **Freezing the board fixes half the problem.** Both `nfl-schedule` and `nba-schedule`
   had already been given frozen preseason fixtures by an earlier data-only sweep, and both
   were still exposed. "Upcoming" is a comparison against `Date.now()`, so a frozen board
