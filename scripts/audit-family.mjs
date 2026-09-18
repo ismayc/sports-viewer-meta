@@ -219,7 +219,11 @@ for (const repo of APPS) {
 for (const repo of APPS) {
   if (!existsSync(join(FAMILY, repo, 'netlify/functions'))) continue
   const vite = read(repo, 'vite.config.js') || ''
-  const inc = vite.match(/include: \[([^\]]*)\]/)
+  // Scoped to the coverage block. A config can carry a `test.include` as well (the WNBA
+  // viewer's does, to separate its live-data suite), and matching the first `include: [`
+  // in the file read that one and reported a covered function as uncovered.
+  const coverage = vite.slice(Math.max(0, vite.indexOf('coverage:')))
+  const inc = coverage.match(/include: \[([^\]]*)\]/)
   if (!inc || !/netlify\/functions/.test(inc[1])) {
     fail(repo, 'function-coverage', 'netlify/functions is not in coverage.include')
   }
