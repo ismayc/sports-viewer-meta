@@ -1,0 +1,35 @@
+name: Probe the league CDN
+
+# Answer one question: can a GitHub Actions runner reach cdn.nba.com and
+# cdn.wnba.com, or is it blocked the way the ESPN site API is from datacenter IPs?
+#
+# The September 2026 data-source scan verified the CDN from a residential IP and left
+# the runner unverified, which is the half that matters: the refresh runs here, not on
+# a laptop. Manual only, because the answer changes about as often as GitHub's egress
+# ranges do, and nothing depends on this feed today.
+#
+# Read the summary, not the exit code alone: the CDN's failure mode is HTTP 200 with a
+# small HTML error page, and the script reports the payload shape for that reason.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe from ubuntu-latest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the meta repo
+        uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      # No npm ci: the script uses Node built-ins and curl only.
+      - name: Probe
+        shell: bash
+        run: node scripts/probe-league-cdn.mjs | tee -a "$GITHUB_STEP_SUMMARY"
