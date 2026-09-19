@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           for slug in nba-schedule wnba-schedule nfl-schedule premier-league \
                       world-cup-viewer womens-world-cup-viewer football-euros-viewer \
-                      copa-america-viewer fiba-womens-world-cup-viewer \
+                      copa-america-viewer fiba-womens-world-cup-viewer fiba-mens-world-cup-viewer \
                       mens-march-madness womens-march-madness sports-trackers; do
             case "$slug" in
               nba-schedule)          dir=the-nba-schedule ;;

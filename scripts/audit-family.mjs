@@ -32,12 +32,16 @@ const META = resolve(HERE, '..')
 const FAMILY = resolve(META, '..')
 const JSON_OUT = process.argv.includes('--json')
 
-// The eleven viewers plus the hub. sports-viewer-meta is not an app and is
-// excluded deliberately.
+// The twelve viewers plus the hub. sports-viewer-meta is not an app and is
+// excluded deliberately. fiba-mens-world-cup-viewer joined the family on
+// September 15, 2026 but not this list until September 19, so for four days the
+// audit never looked at it, and the one check that would have noticed (the
+// prefix registry below) read the hub, the only other repo that knew about it,
+// as the odd one out.
 const APPS = [
   'the-nba-schedule', 'the-wnba-schedule', 'the-nfl-schedule', 'premier-league',
   'world-cup-viewer', 'womens-world-cup-viewer', 'football-euros-viewer',
-  'copa-america-viewer', 'fiba-womens-world-cup-viewer',
+  'copa-america-viewer', 'fiba-womens-world-cup-viewer', 'fiba-mens-world-cup-viewer',
   'the-mens-march-madness', 'the-womens-march-madness', 'hub',
 ]
 
