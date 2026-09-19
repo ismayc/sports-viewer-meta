@@ -415,6 +415,17 @@ conference sweeps.
   `nav.views > button` in the league viewers, bare `.view-btn` in the tournament ones.
   A selector covering only the first scans eight repos' default view and reports a
   confident, meaningless zero.
+- **A legend explains only the marks currently on screen** (2026-09-19). The group
+  legend in the world-cup and euros viewers listed "Provisional 3rd, best-third spot,
+  not yet clinched" unconditionally, while the badge itself only renders on a row with
+  no clinch verdict and `rowStatus === 'best3'`. Once every group is decided nothing
+  carries it, so both finished tournaments shipped a legend asserting something untrue.
+  Legend copy is written mid-build, when every mark is visible, and nothing re-reads it
+  once a competition ends. It is the same blind spot as the post-tournament behavior
+  covered in §6.
+  Derive a legend item's visibility from the SAME predicate that draws the mark, and
+  test both states (mid-competition and fully decided). Tests that assert marks will
+  never catch stale prose about a mark that is absent.
 
 ---
 
