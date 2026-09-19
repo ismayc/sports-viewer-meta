@@ -2,3 +2,8 @@ node_modules
 dist
 coverage
 .DS_Store
+
+# A working status log written to Chester during an unattended session (the September
+# 2026 architecture review follow-ups). Kept locally, not published. It is the only copy
+# in this repo, so do not delete the file itself.
+docs/OVERNIGHT-STATUS.md
