@@ -391,6 +391,30 @@ conference sweeps.
   mirroring "Earlier games". Toggle state is component-local — no readState key.
   Diagnostic smell: app tests that pass locally but time out on CI right after a
   rollover.
+- **A phone viewport is not covered by anything else this family runs** (2026-09-19).
+  Every gate here is a jsdom suite or a desktop screenshot, so a mobile-only layout
+  fault ships and then sits. Two were found the day the family was first rendered at
+  390px in a real browser, both in the diverging margin chart, one of them years old:
+  - **Never hide the row's NAME at phone width and let an icon stand in for it.** The
+    PL chart set `display: none` on the club name below 560px. That reads fine while
+    every row has a crest, and turns into a blank row the moment one does not (its
+    relegated clubs). Keep the name, let it ellipsize, put the full string in a
+    `title` (in a narrow column "Sheffield United" and "Sheffield Wednesday" truncate
+    to the same thing).
+  - **A clamped value label needs `--arm-scale`.** The label is anchored past the end
+    of its own bar and clamped with `min(..., calc(100% - Npx))` so a long bar cannot
+    push it out of the card. On a narrow track a full-length bar then meets the
+    clamp and the label prints on top of the bar. The bar width and the label
+    offset must BOTH multiply by an `--arm-scale` the mobile media query sets to
+    `0.68`. NBA and March Madness had it; PL and NFL never got it.
+
+  Both are checked two ways now: statically by `scripts/audit-family.mjs` (check 11),
+  and in a real browser by `scripts/scan-mobile.mjs`, which drives every viewer at
+  390px and reports rows whose only label is hidden plus labels overlapping their bar.
+  When writing a scanner like this, note the family has **two nav conventions**:
+  `nav.views > button` in the league viewers, bare `.view-btn` in the tournament ones.
+  A selector covering only the first scans eight repos' default view and reports a
+  confident, meaningless zero.
 
 ---
 

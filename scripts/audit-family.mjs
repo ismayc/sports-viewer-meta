@@ -234,6 +234,40 @@ for (const repo of APPS) {
 }
 
 // ---------------------------------------------------------------------------
+// 11. Two phone-width faults in the diverging margin chart
+//
+// Both shipped unnoticed because every check the family runs is a test suite or
+// a desktop screenshot, and neither renders a 390px viewport.
+//
+//   a. The value label is clamped (`min(..., calc(100% - Npx))`) so a long bar
+//      cannot push it out of the card. On a narrow track a full-length bar then
+//      meets the clamp and the label prints ON TOP of its own bar. The fix the
+//      NBA and March Madness viewers already carried is an --arm-scale the bar
+//      width AND the label offset both multiply by, set to 0.68 in the mobile
+//      media query. The PL and NFL viewers were missing it (September 19, 2026).
+//
+//   b. Hiding the club/team NAME in the mobile media query, leaving the crest as
+//      the only label. It reads fine until a row has no crest (the PL chart's
+//      relegated clubs), and then the row is blank. Show the name and let it
+//      ellipsize instead.
+//
+// `node sports-viewer-meta/scripts/scan-mobile.mjs` catches both in a real
+// browser; these two static checks catch them without one.
+// ---------------------------------------------------------------------------
+for (const repo of APPS) {
+  const css = read(repo, 'src/index.css')
+  if (!css || !/^\.margin-bar\s*\{/m.test(css)) continue
+
+  const clamped = /\.margin-label\.(?:pos|neg)\s*\{[^}]*min\(/.test(css)
+  if (clamped && !/--arm-scale/.test(css)) {
+    fail(repo, 'margin-arm-scale', 'clamped margin label with no --arm-scale: a long bar runs under its own value label on a phone')
+  }
+  if (/@media[^{]*max-width[^{]*\{(?:[^{}]|\{[^{}]*\})*?\.margin-(?:club|team)\s+span\s*\{[^}]*display:\s*none/.test(css)) {
+    fail(repo, 'margin-name-hidden', 'the margin chart hides its club/team name at phone width, leaving a crest-only (or blank) row')
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 if (JSON_OUT) {
   console.log(JSON.stringify({ checked: APPS.length, findings }, null, 2))
