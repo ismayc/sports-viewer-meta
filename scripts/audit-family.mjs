@@ -268,6 +268,27 @@ for (const repo of APPS) {
 }
 
 // ---------------------------------------------------------------------------
+// 12. A postseason read from the team feed is also read from the scoreboard
+//
+// ESPN's per-team schedule feed (`seasontype=3`) lags the bracket by days. On
+// September 25, 2026 it was empty for every WNBA team while the scoreboard listed
+// the first round, and the playoff games reached the Schedule and Playoffs tabs
+// only after a hand-forced fix. Any viewer that asks the team feed for a
+// postseason must also read the scoreboard's `season.type` (the competition
+// `type` there is "STD" or a round code, so a parser keyed on it drops every
+// postseason game). See PLAYBOOK §2, trap 8, and postseasonFromScoreboard in
+// scripts/lib/espn.mjs.
+// ---------------------------------------------------------------------------
+for (const repo of APPS) {
+  const t = read(repo, 'scripts/fetch-schedule.mjs')
+  if (!t || !/teams\/\$\{[^}]+\}\/schedule\?[^`]*seasontype=/.test(t)) continue
+  if (!/for \(const type of \[[^\]]*\b3\b/.test(t)) continue
+  if (!/season\?\.type/.test(t)) {
+    fail(repo, 'postseason-scoreboard', 'reads the postseason only from the per-team feed, which lags the bracket by days; also read it from the scoreboard')
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 if (JSON_OUT) {
   console.log(JSON.stringify({ checked: APPS.length, findings }, null, 2))

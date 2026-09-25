@@ -98,6 +98,11 @@ window and filters (`fetch-bracket.mjs`). Either way it must:
   college `seasontype=3` window also carries the NIT and the Crown/WBIT; the March Madness
   builder keeps only games whose `notes[0].headline` starts with
   `"NCAA (Men's|Women's) Basketball Championship"`.
+- **For a league, read the postseason from the scoreboard too** (PLAYBOOK §2 trap 8). The
+  per-team `seasontype=3` feed stays empty for days after ESPN posts the bracket, so a
+  league built on it alone shows no playoff games on the Schedule or Playoffs tab until
+  someone forces them in. `fetchSeason` in `scripts/lib/espn.mjs` does this by default,
+  and `audit-family.mjs` check 12 flags a viewer that does not.
 - Write `src/data/*.js` with a `// GENERATED … do not edit` banner, and mirror team logos into
   `public/logos/` through ESPN's 160px combiner (~8KB each) so the app ships zero external
   image requests.

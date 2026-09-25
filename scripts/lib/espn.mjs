@@ -111,7 +111,9 @@ export function normalizeEvent(ev, { classify } = {}) {
  * Whole season, by whichever strategy the league supports.
  *
  * Verified 2026-07-20 — this is NOT uniform across ESPN:
- *   'team-schedule'  NBA, NFL, WNBA. teams/{abbr}/schedule?season&seasontype
+ *   'team-schedule'  NBA, NFL, WNBA. teams/{abbr}/schedule?season&seasontype, plus
+ *                    the scoreboard for the postseason, which the team feed lags
+ *                    (see postseasonFromScoreboard; opt out with postseasonTypes: null)
  *   'calendar-walk'  SOCCER. The per-team schedule endpoint returns HTTP 400 for
  *                    soccer entirely, so the scoreboard's published `calendar` has to
  *                    be walked in date windows instead.
@@ -149,7 +151,86 @@ export async function fetchByCalendar(espnPath, { windowDays = 10, classify } = 
   return [...byId.values()].sort((a, b) => a.tip.localeCompare(b.tip) || a.id.localeCompare(b.id))
 }
 
-async function fetchByTeamSchedule(espnPath, teams, { season, seasonTypes = [2, 3], classify } = {}) {
+/**
+ * Postseason games from the scoreboard, for leagues that fetch by team schedule.
+ *
+ * The per-team feed (`seasontype=3`) lags ESPN's own bracket by DAYS: on 2026-09-25 it
+ * was empty for every WNBA team while the scoreboard already listed the first round,
+ * and two refreshes committed no playoff games until the scoreboard was read too. So
+ * every team-schedule league reads the scoreboard as well, from its last regular-season
+ * day through `days` days on. Rules, all verified on real 2025-26 scoreboards (NFL wild
+ * card and Super Bowl, NBA play-in and first round, WNBA first round):
+ *
+ *   - The season type lives ONLY on `ev.season.type` there (3 postseason, 5 NBA
+ *     play-in). The competition `type` is "STD" or a round code ("RD16"), so a parser
+ *     keyed on it drops every postseason game. `types` maps season.type to a label.
+ *   - A slot whose teams are not yet known carries "TBD" teams with negative ids; skip
+ *     it until a later refresh finds it filled in. Anything that is not one of the
+ *     league's own teams (the NFL Pro Bowl's AFC and NFC sides) is skipped too.
+ *   - The team feed wins on overlap: callers add only ids they do not already have.
+ *
+ * Pure, so each viewer can test it against a trimmed real payload.
+ */
+export function postseasonFromScoreboard(events, knownAbbrs, types = { 3: 'postseason' }) {
+  const real = (t) => Number(t.team?.id) > 0 && knownAbbrs.has(t.team?.abbreviation)
+  return events
+    .filter((ev) => types[Number(ev.season?.type)])
+    .filter((ev) => {
+      const cs = ev.competitions?.[0]?.competitors || []
+      return cs.length === 2 && cs.every(real)
+    })
+    .map((ev) => ({ ev, seasonType: types[Number(ev.season.type)] }))
+}
+
+/**
+ * How long each league's postseason runs after its last regular-season day, with room
+ * to spare. NBA: play-in plus four best-of-seven rounds, mid-April to late June. NFL:
+ * wild card to the Super Bowl, five weeks. WNBA: three rounds, about five weeks.
+ */
+export const POSTSEASON_DAYS = { 'basketball/nba': 80, 'football/nfl': 49, 'basketball/wnba': 49 }
+
+export async function fetchPostseasonFromScoreboard(
+  espnPath,
+  lastRegularIso,
+  teams,
+  { types, days = POSTSEASON_DAYS[espnPath] ?? 60, classify } = {}
+) {
+  if (!lastRegularIso) return []
+  const from = lastRegularIso.slice(0, 10).replaceAll('-', '')
+  const to = new Date(Date.parse(lastRegularIso) + days * 86400000)
+    .toISOString()
+    .slice(0, 10)
+    .replaceAll('-', '')
+  // Single-date queries only: ESPN answers every hyphenated `dates=A-B` with a 400.
+  const pages = await mapLimit(expandDays(from, to), CONCURRENCY, (day) =>
+    getJson(`${SITE}/${espnPath}/scoreboard?dates=${day}&limit=100`)
+  )
+  const byId = new Map()
+  for (const d of pages) for (const ev of d.events || []) byId.set(ev.id, ev)
+  const known = new Set(teams.map((t) => t.abbr))
+  return postseasonFromScoreboard([...byId.values()], known, types)
+    .map(({ ev, seasonType }) => {
+      const g = normalizeEvent(ev)
+      return g && (classify ? classify({ ...g, seasonType }, ev.competitions[0], ev) : { ...g, seasonType })
+    })
+    .filter(Boolean)
+}
+
+/** A YYYYMMDD span as its individual days, in UTC-day steps. */
+export function expandDays(from, to) {
+  const at = (s) => Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8))
+  const out = []
+  for (let t = at(from); t <= at(to); t += 86400000) {
+    out.push(new Date(t).toISOString().slice(0, 10).replaceAll('-', ''))
+  }
+  return out
+}
+
+async function fetchByTeamSchedule(
+  espnPath,
+  teams,
+  { season, seasonTypes = [2, 3], classify, postseasonTypes = { 3: 'postseason' }, postseasonDays } = {}
+) {
   const byId = new Map()
   const pages = await mapLimit(teams, CONCURRENCY, async (t) => {
     const evs = []
@@ -164,6 +245,23 @@ async function fetchByTeamSchedule(espnPath, teams, { season, seasonTypes = [2, 
   for (const ev of pages.flat()) {
     const g = normalizeEvent(ev, { classify })
     if (g) byId.set(g.id, g)
+  }
+  // The team feed lags the bracket by days (see postseasonFromScoreboard), so the
+  // scoreboard fills in whatever postseason games it does not have yet. On by default:
+  // a new viewer gets it without having to know about the lag.
+  if (postseasonTypes) {
+    const lastRegular = pages
+      .flat()
+      .filter((ev) => Number(ev.seasonType?.type ?? ev.seasonType?.id) === 2)
+      .map((ev) => new Date(ev.date).toISOString())
+      .sort()
+      .at(-1)
+    const extra = await fetchPostseasonFromScoreboard(espnPath, lastRegular, teams, {
+      types: postseasonTypes,
+      days: postseasonDays,
+      classify,
+    })
+    for (const g of extra) if (!byId.has(g.id)) byId.set(g.id, g)
   }
   return [...byId.values()].sort((a, b) => a.tip.localeCompare(b.tip) || a.id.localeCompare(b.id))
 }

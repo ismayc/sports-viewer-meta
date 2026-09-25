@@ -86,10 +86,21 @@ All keyless, all CORS-open. **No API key, no backend, no `.env` has ever been ne
 7. **`$ref`-linked athletes.** The core-API leaders endpoint returns athletes as links
    (~75 extra fetches). The `statistics/byathlete` endpoint inlines name, team, and
    position in **one** request. Use that.
+8. **The per-team feed lags the postseason by days.** On September 25, 2026 every WNBA
+   team's `seasontype=3` schedule was empty while the scoreboard already listed the
+   first round, so two refreshes committed no playoff games and the fix had to be
+   forced by hand. Every team-schedule league (NBA, NFL, WNBA) therefore also reads
+   the scoreboard from its last regular-season day through the end of its postseason,
+   and the team feed wins on overlap. On the scoreboard the type lives only on
+   `season.type` (3 postseason, 5 NBA play-in); the competition `type` is "STD" or a
+   round code, so a parser keyed on it drops every postseason game. Skip slots whose
+   teams are still "TBD" (negative ids) and non-league sides (the Pro Bowl's AFC and
+   NFC). `fetchSeason` in `scripts/lib/espn.mjs` does this by default, and
+   `audit-family.mjs` check 12 flags a viewer that does not.
 
 ### The verification that matters
 
-After handling 1–7, **derive the standings from the committed results and diff them
+After handling 1–8, **derive the standings from the committed results and diff them
 against ESPN's own standings endpoint.** If W-L, home/road splits, last-10, and streak
 all match for every team, the exclusions are right. If they don't, one of the traps above
 is still biting. This check found traps 4 and 5.
