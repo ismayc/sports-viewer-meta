@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Render every viewer at phone width in a real browser and report the labels
-// that vanish or collide. LOCAL TOOL: not wired into CI.
+// that vanish or collide. Runs weekly in CI (.github/workflows/scan-mobile.yml,
+// one job per repo, one issue when anything is found) and locally on demand.
 //
 // WHY THIS EXISTS. Everything else this family runs is a test suite or a desktop
 // screenshot, and neither renders a 390px viewport, so a mobile-only layout fault
@@ -24,6 +25,16 @@
 //   node sports-viewer-meta/scripts/scan-mobile.mjs --repo premier-league --width 320
 //   node sports-viewer-meta/scripts/scan-mobile.mjs --json
 //
+// CHROME_PATH overrides the browser binary (the macOS Google Chrome is the default;
+// the GitHub ubuntu runner has /usr/bin/google-chrome).
+//
+// EXIT CODE. 0 only when every repo started, at least one view was clicked and
+// probed in each, and nothing was found. Any finding, any repo that failed to
+// start, any repo that visited zero views, and a --repo that matches nothing all
+// exit 1 (or 2 for setup problems), so a broken scan cannot pass as a clean one.
+// An earlier DOM sweep in this family clicked nothing in eight repos and reported
+// a confident zero, which is why each repo's visited views are printed below.
+//
 // It starts each repo's own dev server on one port, in turn, clicks through every
 // top-level view, and runs two probes per view. PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 // on install keeps it from fetching a browser: it drives the Google Chrome already
@@ -38,7 +49,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FAMILY = resolve(HERE, '../..')
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 const args = process.argv.slice(2)
 const argOf = (flag, fallback) => {
@@ -84,6 +95,12 @@ let chromium
   }
 }
 
+if (!repos.length) {
+  console.error(`No repo to scan under ${FAMILY}${ONLY ? ` matching --repo ${ONLY}` : ''}.`)
+  console.error('Each app must sit beside the meta repo and have package.json and src/.')
+  process.exit(2)
+}
+
 const startVite = (repo) =>
   new Promise((ok, no) => {
     const p = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: join(FAMILY, repo) })
@@ -127,7 +144,16 @@ const PROBE_LABEL_OVERLAP = () => {
 }
 
 const findings = []
-const browser = await chromium.launch({ executablePath: CHROME, headless: true })
+const visitedByRepo = {}
+const skippedByRepo = {}
+let browser
+try {
+  browser = await chromium.launch({ executablePath: CHROME, headless: true })
+} catch (err) {
+  console.error(`Could not launch Chrome at ${CHROME} (set CHROME_PATH to override):`)
+  console.error(`  ${err.message.split('\n')[0]}`)
+  process.exit(2)
+}
 
 for (const repo of repos) {
   let vite
@@ -153,11 +179,26 @@ for (const repo of repos) {
     )
     for (const view of views.length ? views : ['(default)']) {
       if (view !== '(default)') {
-        const btn = page.getByRole('button', { name: view, exact: true }).first()
-        if (!(await btn.count())) continue
-        await btn.click({ timeout: 5000 }).catch(() => {})
+        // The list above includes [role="tab"] (the bracket viewers' region tabs), so
+        // look the name up as a button first and as a tab second.
+        let btn = page.getByRole('button', { name: view, exact: true }).first()
+        if (!(await btn.count())) btn = page.getByRole('tab', { name: view, exact: true }).first()
+        if (!(await btn.count())) {
+          // Sub-tabs of another view (the bracket viewers' regions) are listed from the
+          // default view but gone once a sibling view is open. Not a fault, but printed
+          // so a skipped view is visible; zero visited views still fails below.
+          ;(skippedByRepo[repo] ??= []).push(view)
+          continue
+        }
+        try {
+          await btn.click({ timeout: 5000 })
+        } catch (err) {
+          findings.push({ repo, view, kind: 'error', detail: `click failed: ${err.message.split('\n')[0]}` })
+          continue
+        }
         await page.waitForTimeout(700)
       }
+      ;(visitedByRepo[repo] ??= []).push(view)
       for (const [kind, probe] of [
         ['hidden-label', PROBE_HIDDEN_LABEL],
         ['label-overlap', PROBE_LABEL_OVERLAP],
@@ -171,16 +212,25 @@ for (const repo of repos) {
     findings.push({ repo, view: '-', kind: 'error', detail: err.message })
   }
 
+  // Zero views probed is a failed scan, never a clean one.
+  if (!visitedByRepo[repo]?.length && !findings.some((f) => f.repo === repo && f.kind === 'error')) {
+    findings.push({ repo, view: '-', kind: 'error', detail: 'visited zero views' })
+  }
+
   await page.close()
   vite.kill('SIGTERM')
   await new Promise((r) => setTimeout(r, 1200))
-  if (!JSON_OUT) console.log(`${repo}: ${findings.filter((f) => f.repo === repo).length} finding(s)`)
+  if (!JSON_OUT) {
+    const v = visitedByRepo[repo] ?? []
+    const sk = skippedByRepo[repo] ?? []
+    console.log(`${repo}: visited ${v.length} view(s) [${v.join(', ')}]${sk.length ? `, skipped ${sk.length} not present when clicked [${sk.join(', ')}]` : ''}: ${findings.filter((f) => f.repo === repo).length} finding(s)`)
+  }
 }
 
 await browser.close()
 
 if (JSON_OUT) {
-  console.log(JSON.stringify({ width: WIDTH, checked: repos.length, findings }, null, 2))
+  console.log(JSON.stringify({ width: WIDTH, checked: repos.length, visited: visitedByRepo, skipped: skippedByRepo, findings }, null, 2))
 } else if (!findings.length) {
   console.log(`\nNo hidden labels and no label collisions at ${WIDTH}px across ${repos.length} repos.`)
 } else {

@@ -1,0 +1,285 @@
+name: Scan phone width
+
+# Render every viewer at 390px in a real headless Chrome and open one issue when a label
+# vanishes or two labels collide.
+#
+# WHY A SCHEDULE. Nothing else in this family renders a phone viewport: the test suites run
+# in jsdom and the desktop screenshots are wide, so a mobile-only layout fault ships and
+# sits there. Two were found by hand on 2026-09-19, both in the diverging margin chart:
+#
+#   * premier-league hid the club NAME below 560px, leaving the crest as the only label,
+#     so a relegated club with no crest rendered a blank row
+#   * the-nfl-schedule printed a row's value label on top of its own bar at 390px, because
+#     the label is clamped inside the card and a full-length bar reaches it
+#
+# The static half of those checks is audit-family.mjs (check 11). This is the half that
+# sees what actually renders. See sports-viewer-meta/scripts/scan-mobile.mjs.
+#
+# NOT a substitute for running it locally after a layout change. GitHub starts these
+# schedules late and sometimes drops one, so treat a missing run as normal and use
+# workflow_dispatch when you need an answer.
+#
+# Quiet by design: a clean scan writes a line to the job summary and nothing else.
+
+on:
+  schedule:
+    # Thursdays, well off the hour, and a different day from "Rehearse the clock" (Wed) so
+    # a red inbox is unambiguous about which one fired.
+    - cron: '10 10 * * 4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Its own group, never a shared name: a static group shared between workflows is what let
+# a busy PR cancel main's deploy in this family on 2026-08-13. Queue rather than cancel,
+# so a dispatch during a scheduled run does not throw away a half-finished scan.
+concurrency:
+  group: scan-mobile
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: ${{ matrix.dir }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One repo per job, because each one starts its own dev server on the same port and
+      # because one faulty repo must not hide the state of the other twelve.
+      fail-fast: false
+      matrix:
+        include:
+          - { dir: the-nba-schedule, slug: nba-schedule }
+          - { dir: the-wnba-schedule, slug: wnba-schedule }
+          - { dir: the-nfl-schedule, slug: nfl-schedule }
+          - { dir: premier-league, slug: premier-league }
+          - { dir: world-cup-viewer, slug: world-cup-viewer }
+          - { dir: womens-world-cup-viewer, slug: womens-world-cup-viewer }
+          - { dir: football-euros-viewer, slug: football-euros-viewer }
+          - { dir: copa-america-viewer, slug: copa-america-viewer }
+          - { dir: fiba-womens-world-cup-viewer, slug: fiba-womens-world-cup-viewer }
+          - { dir: fiba-mens-world-cup-viewer, slug: fiba-mens-world-cup-viewer }
+          - { dir: the-mens-march-madness, slug: mens-march-madness }
+          - { dir: the-womens-march-madness, slug: womens-march-madness }
+          - { dir: hub, slug: sports-trackers }
+    steps:
+      - name: Check out the meta repo
+        uses: actions/checkout@v6
+        with:
+          path: sports-viewer-meta
+
+      # The scan finds the app by walking up two directories from the script, so the app
+      # has to sit beside the meta repo in the same layout as the container on a laptop.
+      # All public, so the default token is enough and no PAT is involved.
+      - name: Check out ${{ matrix.slug }} beside it
+        uses: actions/checkout@v6
+        with:
+          repository: ismayc/${{ matrix.slug }}
+          path: ${{ matrix.dir }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      # The scan starts the app's own Vite dev server, so it needs the app's dependencies.
+      - name: Install ${{ matrix.dir }}
+        shell: bash
+        run: npm ci
+        working-directory: ${{ matrix.dir }}
+
+      # playwright-core is deliberately not a dependency of any repo here, so it goes in a
+      # scratch directory and the scan runs from it (the script looks in the current
+      # directory). PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 because the runner's own Chrome is
+      # the browser, driven headless with a throwaway profile.
+      - name: Install playwright-core
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/scan"
+          cd "$RUNNER_TEMP/scan"
+          npm init -y > /dev/null
+          npm i --no-audit --no-fund playwright-core
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+      - name: Check that Chrome is installed
+        shell: bash
+        run: |
+          if ! command -v google-chrome > /dev/null; then
+            echo "::error::google-chrome is not on PATH on this runner, so the scan cannot render anything."
+            exit 1
+          fi
+          google-chrome --version
+
+      # `shell: bash` for the pipefail it brings. GitHub's default is `bash -e`, whose
+      # exit status is the LAST command in a pipe (tee, which always succeeds), so without
+      # this a failing scan would report success and the report job below would find
+      # nothing to file. That exact shape hid a real outage in this family on 2026-08-16.
+      - name: Scan at 390px
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/scan"
+          node "$GITHUB_WORKSPACE/sports-viewer-meta/scripts/scan-mobile.mjs" --repo "$DIR" \
+            2>&1 | tee "$GITHUB_WORKSPACE/scan-$DIR.txt"
+        env:
+          DIR: ${{ matrix.dir }}
+          CHROME_PATH: /usr/bin/google-chrome
+
+      # if: always() so a repo with findings keeps its result past the failing step above;
+      # that file is the only thing the report job has to name what broke.
+      - name: Keep the result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scan-${{ matrix.dir }}
+          path: scan-${{ matrix.dir }}.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  report:
+    name: File an issue if anything is found
+    needs: scan
+    # always(), or a failing matrix skips the very job that exists to report it.
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write # the default token is read-only, so opening an issue needs this
+    steps:
+      # continue-on-error, because "no artifacts at all" has to reach the summary step
+      # as a finding rather than killing the job that exists to report findings.
+      - name: Collect every repo's result
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: scan-*
+          merge-multiple: true
+          path: results
+
+      - name: Summarize
+        id: sum
+        shell: bash
+        env:
+          EXPECTED: '13'
+        run: |
+          # nullglob and an array, not `ls | wc -l`: under `bash -eo pipefail` a glob that
+          # matches nothing would abort the step, and this step failing silently is the
+          # one outcome that must not happen.
+          shopt -s nullglob
+          files=(results/*.txt)
+          COUNT=${#files[@]}
+
+          # The scan prints one "<repo>: visited N view(s) [...]: M finding(s)" line per repo
+          # and one indented "  repo · view · kind: detail" line per finding.
+          FOUND=''
+          NOVIEWS=''
+          if [ "$COUNT" -gt 0 ]; then
+            FOUND=$(grep -h '^  .* · .* · .*: ' "${files[@]}" || true)
+            NOVIEWS=$(grep -h ': visited 0 view' "${files[@]}" || true)
+            # A file with no result line at all means the scan died before it reported
+            # (Chrome would not launch, playwright-core was missing). Name those files.
+            for f in "${files[@]}"; do
+              if ! grep -q -e ': visited ' -e ' · error: ' "$f"; then
+                NOVIEWS="$NOVIEWS"$'\n'"$f: scan produced no result (see that job's log)"
+              fi
+            done
+            NOVIEWS=$(printf '%s' "$NOVIEWS" | sed '/^$/d')
+          fi
+
+          # A repo that reported nothing at all is NOT a pass. Counting the artifacts is
+          # what separates "thirteen clean scans" from "one clean scan and twelve repos
+          # that never ran", which look identical if you only read the finding lines.
+          CLEAN=true
+          if [ -n "$FOUND" ] || [ -n "$NOVIEWS" ] || [ "$COUNT" -ne "$EXPECTED" ]; then
+            CLEAN=false
+          fi
+
+          {
+            echo "## Phone-width scan"
+            echo
+            echo "Reported by $COUNT of $EXPECTED repos."
+            echo
+            if [ "$CLEAN" = true ]; then
+              echo "No hidden labels and no label collisions at 390px."
+            else
+              echo '```'
+              if [ -n "$FOUND" ]; then echo "$FOUND"; fi
+              if [ -n "$NOVIEWS" ]; then echo "$NOVIEWS"; fi
+              if [ "$COUNT" -ne "$EXPECTED" ]; then
+                echo "(only $COUNT of $EXPECTED repos reported a result at all)"
+              fi
+              echo '```'
+            fi
+            if [ "$COUNT" -gt 0 ]; then
+              echo
+              echo "Views visited per repo:"
+              echo '```'
+              grep -h ': visited ' "${files[@]}" || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          {
+            echo 'body<<SCAN_EOF'
+            if [ -n "$FOUND" ]; then echo "$FOUND"; fi
+            if [ -n "$NOVIEWS" ]; then echo "$NOVIEWS"; fi
+            if [ "$COUNT" -ne "$EXPECTED" ]; then
+              echo "(only $COUNT of $EXPECTED repos reported a result at all)"
+            fi
+            echo 'SCAN_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+          echo "clean=$CLEAN" >> "$GITHUB_OUTPUT"
+
+      # One OPEN issue at a time. A weekly job that files every week would train you to
+      # ignore it; this re-files only once the previous one is closed.
+      - name: File an issue
+        if: steps.sum.outputs.clean == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          FINDINGS: ${{ steps.sum.outputs.body }}
+        run: |
+          TITLE="Phone-width scan: a label vanishes or collides"
+          if [ -n "$(gh issue list --state open --search "$TITLE" --json number --jq '.[0].number')" ]; then
+            echo "Already open, so not re-filing." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Body via a file, not a heredoc inside $( ): an apostrophe in the prose is
+          # enough to break the latter, and it has.
+          cat > /tmp/issue-body.md <<EOF
+          A scheduled scan at 390px found a label that vanishes or two that collide, or a
+          repo it could not scan at all.
+
+          \`\`\`
+          $FINDINGS
+          \`\`\`
+
+          Run: $RUN_URL
+
+          ## What to do
+
+          1. Reproduce locally, which is the same scan the job ran. From any scratch
+             directory:
+             \`\`\`
+             npm init -y && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright-core
+             node ~/repos/sports-trackers/sports-viewer-meta/scripts/scan-mobile.mjs --repo <dir>
+             \`\`\`
+          2. \`hidden-label\` means a row shows an image but every scrap of its text is
+             hidden at this width. \`label-overlap\` means a value label sits on top of its
+             own bar. Fix the CSS at that width, and add the case to
+             \`scripts/audit-family.mjs\` check 11 if a static rule can catch it.
+          3. An \`error\` line, a "visited 0 view(s)" line, or a count below 13 means a repo
+             could not be scanned at all. That is not a pass and should be chased first.
+
+          Filed by \`.github/workflows/scan-mobile.yml\`.
+          EOF
+          gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
+
+      # The matrix result is what actually gates: a green report job over a red matrix
+      # would be exactly the "looks green but isn't" shape this repo keeps writing down.
+      - name: Fail the run if anything is found
+        if: steps.sum.outputs.clean == 'false'
+        shell: bash
+        run: exit 1
