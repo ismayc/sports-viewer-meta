@@ -49,6 +49,8 @@ jobs:
   rehearse:
     name: ${{ matrix.dir }}
     runs-on: ubuntu-latest
+    # The NBA repo's full coverage run takes about 6 minutes, so 14 instants is about 84 minutes.
+    timeout-minutes: 240
     strategy:
       # One repo per job so the sweep is ~10 minutes of wall clock instead of an hour,
       # and so one exposed repo does not hide the state of the other eleven.
@@ -101,10 +103,14 @@ jobs:
       # without this a failing rehearsal would report success and the report job below
       # would find nothing to file. That exact shape hid a real outage in this family on
       # 2026-08-16.
+      #
+      # --days 14 rehearses every day until the next weekly run plus a week of lead time.
+      # A ladder of offsets is not enough: a WNBA test failed on October 2 alone, and the
+      # push three days earlier had rehearsed September 29 and October 4 and missed it.
       - name: Rehearse
         shell: bash
         run: |
-          node sports-viewer-meta/scripts/rehearse-clock.mjs --repo "$DIR" \
+          node sports-viewer-meta/scripts/rehearse-clock.mjs --repo "$DIR" --days 14 \
             | tee "rehearsal-$DIR.txt"
         env:
           DIR: ${{ matrix.dir }}
@@ -228,7 +234,7 @@ jobs:
 
           ## What to do
 
-          1. Reproduce locally, which is the same command the job ran:
+          1. Reproduce locally. The job ran \`--days 14\`; \`--at\` reruns just the failing day:
              \`\`\`
              node sports-viewer-meta/scripts/rehearse-clock.mjs --repo <dir> --at <YYYY-MM-DD>
              \`\`\`

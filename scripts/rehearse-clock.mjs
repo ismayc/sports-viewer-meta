@@ -36,7 +36,15 @@
 //   node sports-viewer-meta/scripts/rehearse-clock.mjs --repo the-nba-schedule
 //   node sports-viewer-meta/scripts/rehearse-clock.mjs --repo the-nba-schedule \
 //     --at 2026-10-20 --at 2027-06-20
+//   node sports-viewer-meta/scripts/rehearse-clock.mjs --days 14
 //   node sports-viewer-meta/scripts/rehearse-clock.mjs --json
+//
+// --days N rehearses EVERY calendar day for the next N days, tomorrow first, each at
+// noon UTC. It can be combined with --at (the result is the sorted union). Use it when
+// the question is "will anything go red before the next check", because a ladder only
+// catches a one-day failure when a rung happens to land on that day: on 2026-09-29 a
+// WNBA test failed on October 2 alone, and the push three days earlier had rehearsed
+// September 29 and October 4 and missed it. The weekly workflow passes --days 14.
 //
 // Pick the instants from the calendar the viewer actually lives on: the day after
 // its next fixture, the day its season opens, the day its last game is played, the
@@ -75,16 +83,25 @@ const LADDER_DAYS = [1, 3, 8, 30, 90, 180, 365]
 function parseArgs(argv) {
   const repos = []
   const dates = []
+  let days = 0
   let json = false
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--json') json = true
     else if (a === '--repo') repos.push(argv[++i])
     else if (a === '--at') dates.push(argv[++i])
-    else if (a === '--help' || a === '-h') return { help: true }
+    else if (a === '--days') {
+      const v = argv[++i]
+      // Digits only, so 1.5, -1, 1e3 and an empty value are all refused rather than
+      // silently rounded into a shorter sweep than the caller asked for.
+      if (v === undefined || !/^\d+$/.test(v) || Number(v) < 1) {
+        return { error: `--days needs a positive integer, got ${v === undefined ? 'nothing' : JSON.stringify(v)}` }
+      }
+      days = Math.max(days, Number(v))
+    } else if (a === '--help' || a === '-h') return { help: true }
     else return { error: `unknown argument ${a}` }
   }
-  return { repos, dates, json }
+  return { repos, dates, days, json }
 }
 
 // Accept a bare day ("2027-06-20") as midday UTC, so a caller does not have to think
@@ -94,6 +111,14 @@ function toInstant(s) {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) throw new Error(`--at ${s} is not a date I can parse`)
   return d.toISOString()
+}
+
+// One noon-UTC instant per calendar day for the next n days, starting tomorrow. Built
+// from the UTC date of the real clock, so the result does not depend on the runner's TZ.
+function dailyDates(n) {
+  const t = new Date()
+  const start = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), 12)
+  return Array.from({ length: n }, (_, i) => new Date(start + (i + 1) * 86400_000).toISOString())
 }
 
 function defaultDates() {
@@ -172,7 +197,7 @@ const args = parseArgs(process.argv.slice(2))
 if (args.help || args.error) {
   if (args.error) console.error(`rehearse-clock: ${args.error}\n`)
   console.log(
-    'Usage: rehearse-clock.mjs [--repo <name>]... [--at <YYYY-MM-DD|ISO>]... [--json]',
+    'Usage: rehearse-clock.mjs [--repo <name>]... [--at <YYYY-MM-DD|ISO>]... [--days <N>] [--json]',
   )
   process.exit(args.error ? 2 : 0)
 }
@@ -181,7 +206,12 @@ const repos = args.repos.length ? args.repos : APPS
 
 let instants
 try {
-  instants = args.dates.length ? args.dates.map(toInstant) : defaultDates()
+  if (args.dates.length || args.days) {
+    // Union, sorted, de-duplicated: an --at that lands on a --days instant runs once.
+    instants = [...new Set([...args.dates.map(toInstant), ...dailyDates(args.days)])].sort()
+  } else {
+    instants = defaultDates()
+  }
 } catch (e) {
   console.error(`rehearse-clock: ${e.message}`)
   process.exit(2)
