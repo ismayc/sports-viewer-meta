@@ -175,8 +175,17 @@ const launchVite = (repo) =>
  */
 const PROBE_HIDDEN_LABEL = () => {
   const out = []
+  // Content of a CLOSED <details> is hidden until the reader opens it, at every width:
+  // that is a disclosure, not a label lost at phone width. The first CI run (September
+  // 29, 2026) flagged all eight viewers on the hub's collapsed "Completed tournaments"
+  // shelf this way. A closed details' own <summary> is still checked.
+  const inClosedDisclosure = (el) => {
+    const d = el.closest('details:not([open])')
+    return Boolean(d) && !el.closest('summary')
+  }
   for (const el of document.querySelectorAll('*')) {
     if (!el.querySelector('.logo, img')) continue
+    if (inClosedDisclosure(el)) continue
     if (!el.textContent.trim() || el.innerText.trim()) continue
     // Report the innermost offender; its ancestors match too.
     const inner = [...el.children].some(
