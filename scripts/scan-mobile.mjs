@@ -101,12 +101,72 @@ if (!repos.length) {
   process.exit(2)
 }
 
-const startVite = (repo) =>
+// The first CI run (September 29, 2026) hung all thirteen jobs for over half an hour.
+// Each reported "vite did not start in 60s" and then never exited, for two reasons
+// fixed here. Readiness was read from vite's stdout ("Local:"), which never matched on
+// the runner, so readiness is now an HTTP answer from the server itself. And the failed
+// server was never stopped: it was started through npx, so a kill reached npx and not
+// vite, and the live child kept Node running. vite now starts from the app's own
+// node_modules/.bin, on 127.0.0.1 so the address cannot resolve to IPv6 instead, and is
+// killed on every path. The last lines it printed go into the error.
+const HOST = '127.0.0.1'
+const START_MS = Number(process.env.SCAN_VITE_TIMEOUT_MS ?? 120000)
+
+// Something already answering on the port (a dev server left running, another tool)
+// would be mistaken for this repo's app, so a busy port is an error before vite starts.
+const portAnswers = async () => {
+  try {
+    await fetch(`http://${HOST}:${PORT}/`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const startVite = async (repo) => {
+  if (await portAnswers()) throw new Error(`port ${PORT} is already answering; stop whatever holds it, or pass --port`)
+  return launchVite(repo)
+}
+
+const launchVite = (repo) =>
   new Promise((ok, no) => {
-    const p = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { cwd: join(FAMILY, repo) })
-    const t = setTimeout(() => no(new Error('vite did not start in 60s')), 60000)
-    p.stdout.on('data', (d) => String(d).includes('Local:') && (clearTimeout(t), ok(p)))
-    p.on('exit', (c) => (clearTimeout(t), no(new Error(`vite exited ${c}`))))
+    const bin = join(FAMILY, repo, 'node_modules', '.bin', 'vite')
+    if (!existsSync(bin)) return no(new Error(`no ${bin}; run npm ci in ${repo} first`))
+    const p = spawn(bin, ['--host', HOST, '--port', String(PORT), '--strictPort'], {
+      cwd: join(FAMILY, repo),
+      env: { ...process.env, BROWSER: 'none' },
+    })
+    let tail = ''
+    const keep = (d) => (tail = (tail + String(d)).slice(-600))
+    p.stdout.on('data', keep)
+    p.stderr.on('data', keep)
+    let settled = false
+    const fail = (msg) => {
+      if (settled) return
+      settled = true
+      p.kill('SIGKILL')
+      no(new Error(`${msg}; its last output: ${tail.replace(/\s+/g, ' ').trim().slice(-300) || '(none)'}`))
+    }
+    p.on('exit', (c) => fail(`vite exited ${c}`))
+    const deadline = Date.now() + START_MS
+    const poll = async () => {
+      if (settled) return
+      try {
+        // Only this repo's dev server counts: its page loads /@vite/client. Anything
+        // else answering on the port is a different server, and scanning it would
+        // report a clean pass for a page that is not this app.
+        const res = await fetch(`http://${HOST}:${PORT}/`)
+        if (res.ok && (await res.text()).includes('/@vite/client')) {
+          settled = true
+          return ok(p)
+        }
+      } catch {
+        // Not listening yet.
+      }
+      if (Date.now() > deadline) return fail(`vite did not answer in ${START_MS / 1000}s`)
+      setTimeout(poll, 500)
+    }
+    poll()
   })
 
 /**
@@ -166,7 +226,7 @@ for (const repo of repos) {
 
   const page = await browser.newPage({ viewport: { width: WIDTH, height: 900 } })
   try {
-    await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle', timeout: 45000 })
+    await page.goto(`http://${HOST}:${PORT}/`, { waitUntil: 'networkidle', timeout: 45000 })
     const views = await page.evaluate(() =>
       [...new Set(
         // Two conventions: the league viewers wrap their tabs in `nav.views`, the
@@ -218,8 +278,12 @@ for (const repo of repos) {
   }
 
   await page.close()
-  vite.kill('SIGTERM')
-  await new Promise((r) => setTimeout(r, 1200))
+  // Wait for the exit, so the next repo's server finds the port free.
+  await new Promise((r) => {
+    vite.once('exit', r)
+    vite.kill('SIGTERM')
+    setTimeout(() => (vite.kill('SIGKILL'), r()), 5000)
+  })
   if (!JSON_OUT) {
     const v = visitedByRepo[repo] ?? []
     const sk = skippedByRepo[repo] ?? []
@@ -237,4 +301,6 @@ if (JSON_OUT) {
   console.log(`\n${findings.length} finding(s) at ${WIDTH}px:`)
   for (const f of findings) console.log(`  ${f.repo} · ${f.view} · ${f.kind}: ${f.detail}`)
 }
-process.exitCode = findings.length ? 1 : 0
+// exit(), not exitCode: a stray handle (a child that ignored its signal) must not keep a
+// finished scan running until the job times out.
+process.exit(findings.length ? 1 : 0)

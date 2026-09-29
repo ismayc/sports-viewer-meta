@@ -41,6 +41,9 @@ concurrency:
 jobs:
   scan:
     name: ${{ matrix.dir }}
+    # A hung scan held all thirteen jobs, and the other repos' CI behind them, for over
+    # half an hour on September 29, 2026. One repo's scan takes a few minutes.
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     strategy:
       # One repo per job, because each one starts its own dev server on the same port and
