@@ -4,7 +4,7 @@
 // 2026-04-20 (first round). Run with `npm test`.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { postseasonFromScoreboard, expandDays } from '../scripts/lib/espn.mjs'
+import { postseasonFromScoreboard, teamFeedEvents, expandDays } from '../scripts/lib/espn.mjs'
 
 const team = (id, abbreviation, homeAway) => ({ homeAway, team: { id, abbreviation } })
 const event = (id, seasonType, ctype, competitors) => ({
@@ -50,6 +50,23 @@ test('skips TBD slots, regular-season games, and non-league sides', () => {
   assert.deepEqual(
     out.map(({ ev, seasonType }) => [ev.id, seasonType]),
     [['sb', 'postseason']]
+  )
+})
+
+test('the team feed drops a TBD slot and keeps the real games', () => {
+  // New York's WNBA feed on 2026-09-30: a played first-round game and a semifinal slot.
+  const wnba = new Set(['MIN', 'NY'])
+  const out = teamFeedEvents(
+    [
+      event('401918014', 3, STD, [team('8', 'MIN', 'home'), team('9', 'NY', 'away')]),
+      event('401918295', 3, STD, [team('-1', 'TBD', 'home'), team('9', 'NY', 'away')]),
+      event('stranger', 2, STD, [team('8', 'MIN', 'home'), team('99', 'ZZZ', 'away')]),
+    ],
+    wnba
+  )
+  assert.deepEqual(
+    out.map((ev) => ev.id),
+    ['401918014']
   )
 })
 

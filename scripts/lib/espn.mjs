@@ -172,14 +172,29 @@ export async function fetchByCalendar(espnPath, { windowDays = 10, classify } = 
  * Pure, so each viewer can test it against a trimmed real payload.
  */
 export function postseasonFromScoreboard(events, knownAbbrs, types = { 3: 'postseason' }) {
-  const real = (t) => Number(t.team?.id) > 0 && knownAbbrs.has(t.team?.abbreviation)
   return events
     .filter((ev) => types[Number(ev.season?.type)])
-    .filter((ev) => {
-      const cs = ev.competitions?.[0]?.competitors || []
-      return cs.length === 2 && cs.every(real)
-    })
+    .filter((ev) => bothSidesReal(ev, knownAbbrs))
     .map((ev) => ({ ev, seasonType: types[Number(ev.season.type)] }))
+}
+
+// A side is one of the league's own teams: a positive ESPN id we know. TBD slots carry
+// ids -1/-2; the NFL Pro Bowl's AFC and NFC sides are real ids but not franchises.
+const isRealSide = (t, knownAbbrs) => Number(t.team?.id) > 0 && knownAbbrs.has(t.team?.abbreviation)
+const bothSidesReal = (ev, knownAbbrs) => {
+  const cs = ev.competitions?.[0]?.competitors || []
+  return cs.length === 2 && cs.every((t) => isRealSide(t, knownAbbrs))
+}
+
+/**
+ * The per-team feed needs the same check. Once a team wins a series, ESPN lists its
+ * next-round games in that team's feed with the opponent "TBD" (id -1/-2) until the
+ * other series ends. On 2026-09-30 New York's WNBA feed carried five such semifinal
+ * games; the viewer committed them and its refresh went red on the live suite's
+ * known-team check (wnba-schedule run 36740376504). Pure, for tests.
+ */
+export function teamFeedEvents(events, knownAbbrs) {
+  return events.filter((ev) => bothSidesReal(ev, knownAbbrs))
 }
 
 /**
@@ -242,7 +257,7 @@ async function fetchByTeamSchedule(
     }
     return evs
   })
-  for (const ev of pages.flat()) {
+  for (const ev of teamFeedEvents(pages.flat(), new Set(teams.map((t) => t.abbr)))) {
     const g = normalizeEvent(ev, { classify })
     if (g) byId.set(g.id, g)
   }

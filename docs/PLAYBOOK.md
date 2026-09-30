@@ -97,6 +97,16 @@ All keyless, all CORS-open. **No API key, no backend, no `.env` has ever been ne
    teams are still "TBD" (negative ids) and non-league sides (the Pro Bowl's AFC and
    NFC). `fetchSeason` in `scripts/lib/espn.mjs` does this by default, and
    `audit-family.mjs` check 12 flags a viewer that does not.
+9. **Once the team feed does fill in, it lists "TBD" games too.** When a team wins a
+   series, ESPN adds its next-round games to that team's feed with the opponent "TBD"
+   (id -1/-2) and `timeValid: false`, while the other series is still being played. On
+   September 30, 2026 New York's WNBA feed carried five such semifinal games; the team
+   feed had no guard, so they reached `GAMES` and the refresh went red on the live
+   suite's known-team check (wnba-schedule run 36740376504). The team feed needs the
+   same real-side check as the scoreboard: `teamFeedEvents` in `scripts/lib/espn.mjs`,
+   used by `fetchSeason`. The WNBA viewer keeps one-sided slots in a separate `PENDING`
+   export and shows them on the board ("Dream/Mystics winner", "Time TBD"). NBA and NFL
+   only drop them.
 
 ### The verification that matters
 
