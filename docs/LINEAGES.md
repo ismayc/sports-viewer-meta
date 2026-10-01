@@ -25,7 +25,7 @@ Every viewer descends from one of two ancestors, and the split runs deeper than 
 | calendar function | `netlify/functions/calendar.mjs` | `netlify/functions/calendar.js` |
 | function data source | **imports committed data** from `src/` | **fetches ESPN on every request** |
 | function export style | `export default` | `export const handler` |
-| in-repo verification | `scripts/verify-live.mjs` | `.claude/skills/verify` |
+| in-repo verification | `scripts/verify-live.mjs` | `.claude/skills/drive-app` (renamed from `verify` 2026-10-01; `verify` is now the shared pre-commit gate in `sports-trackers/.claude/skills/`) |
 | architecture doc | `BUILD-NOTES.md` (NBA, MM×2) or `FRAMEWORK-NOTES.md` (NFL) | `ARCHITECTURE.md` |
 
 `premier-league` is a **hybrid** and the reason to check rather than assume: it has the
