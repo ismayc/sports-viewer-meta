@@ -204,6 +204,32 @@ The shape of the fix, now in `the-wnba-schedule` and `hub`:
   outranks the guard;
 - the calendar export emits an all-day event rather than a timed one.
 
+### What the rollout looked like, across thirteen repos
+
+It was not one change thirteen times, and the spread is the part worth keeping:
+
+- **Five** (WNBA, NBA, NFL, both March Madness) plus the hub took the full shape: the flag
+  out of the fetch, three helpers (`gameTime`, `gameDayKey`, `gameCountdown`) routing every
+  call site, `liveState`/`isImminent` refusing to read progress from a placeholder, and an
+  all-day ICS event.
+- **Premier League** needed the same idea in the other lineage's idiom — `koDay` / `koTime`
+  / `koCountdown` against `timeCore`, "Time TBC", and `whenBucket` where the others have
+  `liveState`.
+- **Both FIBA viewers already had the better answer**: an unannounced tip is committed as
+  `ko: null` with `tbdTip: true`, and the app tolerates a null kickoff throughout. Their
+  bug was the *upgrade* path — a placeholder was allowed to resolve that honest "to be
+  confirmed" into a confident wrong time. Worth copying the model, not just the fix.
+- **The four whose schedules do not come from ESPN** (Women's World Cup, Euros, Copa,
+  World Cup) had no rendered time to get wrong, and were exposed somewhere less obvious:
+  the live overlay keys knockout matching on the kickoff instant, and every untimed game
+  on a date shares the same placeholder instant, so the key pairs whichever two collide.
+  The World Cup's drift checker also compared placeholders against the committed schedule
+  and reported hours of drift nobody could act on.
+
+Only two were actually wrong at the time: the NFL, with 24 flex-scheduled games in weeks
+17 and 18 showing invented kickoffs a day early, and the WNBA, with the four semifinal
+slots that started this. Everywhere else it is preventive, and the commits say so.
+
 Check 14 in `audit-family.mjs` covers the cheap half: a script that takes dates off ESPN
 events must mention `timeValid` at all. It cannot prove the flag is carried on every path —
 the failure above would have passed it — so when you touch a fetch script, grep for every
