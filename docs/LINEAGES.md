@@ -156,3 +156,55 @@ The standing rule these leave behind: **when a rollout lands, add its invariant 
 `audit-family.mjs`.** That is what turns "I fixed it everywhere" from a memory into a
 command, and this family's most repeated failure is a rollout that stopped short and then
 got described as finished.
+
+---
+
+## 6. The feed answers questions it does not know the answer to
+
+ESPN's scoreboard never returns "unknown". It returns a plausible-looking value with a flag
+beside it, and every viewer that reads past the flag ships a confident lie. This is one trap
+class, not a list of oddities, and it is worth holding as a rule because the next instance
+will involve a field nobody here has looked at yet:
+
+> For any value taken off the feed, ask whether it can be a placeholder, a filler, or a row
+> from a neighbouring competition — and if it can, find the flag that says so and branch on
+> it. `timeValid`, `season.type`, `competition.notes[].headline` and `broadcasts[].market`
+> have each burned this family at least once.
+
+### The instance that named the rule: `timeValid` (October 3, 2026)
+
+When a start time is not yet announced, ESPN sends `timeValid: false` and, in place of a
+time, **midnight US Eastern on the day of the game**. A pipeline that stores that as `tip`
+has already lost the distinction, and everything downstream formats a real-looking clock
+from it. Three separate failures follow, and all three shipped:
+
+1. **A time nobody announced.** `04:00Z` renders as "9:00 PM".
+2. **On the wrong day.** West of Eastern that midnight is the previous evening, so the game
+   is listed, grouped, sorted and scrolled to a day early.
+3. **A game that looks played.** A `tip > now` test calls it started from 00:00 ET, so a
+   two-hour "likely live" window opens in the small hours and the game reads as finished by
+   breakfast — on the one day it matters. The same arithmetic opens a live-polling window at
+   23:45 the night before. In the WNBA viewer it also put a timed entry on subscribers'
+   calendars, at 9pm on the wrong date.
+
+The WNBA viewer **did** handle the flag — on the pending-slot path, taken by a playoff game
+only while one side is still "TBD". When the matchup was decided the game moved to the
+ordinary path and lost the flag, so the viewer was correct right up until the bracket filled
+in, which is exactly when people look. **A flag handled on one path is not handled.** That
+is the part of this worth remembering when the next placeholder field turns up.
+
+The shape of the fix, now in `the-wnba-schedule` and `hub`:
+
+- the fetch records the flag (`timeTbd`) on **every** path that writes a tip, not just the
+  one where the placeholder was first noticed;
+- one helper each for the day, the clock, and the countdown, and every call site goes
+  through them — a placeholder is bucketed on its **Eastern** date and never formatted;
+- anything that asks "has this started?" (`liveState`, `isImminent`, a look-ahead's
+  `tip > now`) refuses to answer from a placeholder, while a real score or live feed still
+  outranks the guard;
+- the calendar export emits an all-day event rather than a timed one.
+
+Check 14 in `audit-family.mjs` covers the cheap half: a script that takes dates off ESPN
+events must mention `timeValid` at all. It cannot prove the flag is carried on every path —
+the failure above would have passed it — so when you touch a fetch script, grep for every
+path that writes a tip and confirm each one carries it.

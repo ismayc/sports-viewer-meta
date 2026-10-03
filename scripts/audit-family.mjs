@@ -546,6 +546,40 @@ for (const repo of LIVE) {
 }
 
 // ---------------------------------------------------------------------------
+// 14. A tip time ESPN has not announced is never written as a tip time
+//
+// When the start time is unset ESPN sends `timeValid: false` and, in place of a
+// time, MIDNIGHT US EASTERN on the day of the game. It is a date wearing the
+// costume of an instant, and a pipeline that stores it as `tip` has already lost
+// the distinction: every reader downstream is then formatting a real-looking
+// clock. On October 3, 2026 the WNBA viewer offered a semifinal at "9:00 PM" on
+// the evening BEFORE it was played, because 04:00Z is 9pm the previous day at
+// UTC-7, and the hub did the same in its own look-ahead.
+//
+// What made it survive a year of scrutiny in the WNBA repo: the flag WAS handled,
+// but only on the pending-slot path, which a playoff game takes only while one
+// side is still "TBD". The moment the matchup was decided the game arrived on the
+// ordinary path and lost the flag — so the viewer was correct right up until the
+// bracket filled in, which is the point at which anyone looks.
+//
+// The invariant is the cheap half: a script that reads event dates out of ESPN
+// must mention `timeValid` somewhere. It cannot prove the flag is carried on
+// every path, but every repo that fails it is certainly storing placeholders as
+// times. See docs/LINEAGES.md §6.
+// ---------------------------------------------------------------------------
+for (const repo of FETCHERS) {
+  for (const f of ['scripts/fetch-schedule.mjs', 'src/services/espn.js']) {
+    const src = read(repo, f)
+    if (!src) continue
+    // Only the files that actually take a date off an ESPN event.
+    if (!/\bev\.date\b|\bevent\.date\b|\.date\)\.toISOString\(\)/.test(src)) continue
+    if (!/timeValid/.test(src)) {
+      fail(repo, 'tip-tbd', `${f} stores ESPN's event date as a tip without checking timeValid, so an unannounced start is published as a real time (midnight ET, which reads as the previous evening west of Eastern)`)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 if (JSON_OUT) {
   console.log(JSON.stringify({ checked: APPS.length, findings }, null, 2))
