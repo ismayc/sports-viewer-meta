@@ -271,7 +271,10 @@ jobs:
              \`\`\`
           2. \`hidden-label\` means a row shows an image but every scrap of its text is
              hidden at this width. \`label-overlap\` means a value label sits on top of its
-             own bar. Fix the CSS at that width, and add the case to
+             own bar. \`text-collision\` means two pieces of text print over each other.
+             \`spill\` means a flex or grid item left its parent, which usually means a shrunk
+             container. \`squeezed\` means the page scrolls sideways or an ellipsized name
+             shows under 55% of itself. Fix the CSS at that width, and add the case to
              \`scripts/audit-family.mjs\` check 11 if a static rule can catch it.
           3. An \`error\` line, a "visited 0 view(s)" line, or a count below 13 means a repo
              could not be scanned at all. That is not a pass and should be chased first.
