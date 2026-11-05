@@ -27,6 +27,9 @@
 // script here.
 
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
@@ -165,6 +168,70 @@ for (const r of results) {
   console.log(`${mark}  ${r.name}`)
   console.log(`      ${r.url}`)
   console.log(`      ${r.why}`)
+}
+
+// --compare: read-only check of the feed against the committed snapshot, added November 5,
+// 2026 before using the feed to fill channels ESPN has not listed. Answers three questions:
+// do the games join on tip and teams, how many channel gaps would it fill, and where both
+// sources list a channel, do they agree? Writes nothing.
+if (process.argv.includes('--compare')) {
+  const repoByLeague = { nba: 'the-nba-schedule', wnba: 'the-wnba-schedule' }
+  const toEspn = { NYK: 'NY', SAS: 'SA', GSW: 'GS', NOP: 'NO', UTA: 'UTAH', WAS: 'WSH', LVA: 'LV', NYL: 'NY', LAS: 'LA', PHO: 'PHX', CON: 'CONN', GSV: 'GS', POR: 'POR' }
+  const here = dirname(fileURLToPath(import.meta.url))
+  for (const key of leagues) {
+    const { site, host } = LEAGUES[key]
+    const r = get(`https://${host}/static/json/staticData/scheduleLeagueV2.json`, site)
+    const feed = new Map()
+    for (const d of JSON.parse(r.body).leagueSchedule.gameDates) {
+      for (const g of d.games) {
+        const a = g.awayTeam?.teamTricode
+        const h = g.homeTeam?.teamTricode
+        if (a && h) feed.set(`${g.gameDateTimeUTC.slice(0, 16)} ${toEspn[a] ?? a} ${toEspn[h] ?? h}`, g)
+      }
+    }
+    const tv = (g) => {
+      const b = g.broadcasters ?? {}
+      return {
+        national: (b.nationalBroadcasters ?? []).map((x) => x.broadcasterDisplay),
+        home: (b.homeTvBroadcasters ?? []).map((x) => x.broadcasterDisplay),
+        away: (b.awayTvBroadcasters ?? []).map((x) => x.broadcasterDisplay),
+        ott: (b.nationalOttBroadcasters ?? []).map((x) => x.broadcasterDisplay),
+      }
+    }
+    const source = readFileSync(join(here, '../..', repoByLeague[key], 'src/data/schedule.js'), 'utf8')
+    const ours = source.split('\n').flatMap((l) => {
+      const m = l.match(/^ {2}(\{"id".*\}),?$/)
+      return m ? [JSON.parse(m[1])] : []
+    })
+    const keyOf = (g) => `${g.tip.slice(0, 16)} ${g.away} ${g.home}`
+    const now = new Date().toISOString()
+    const upcoming = ours.filter((g) => !g.score && g.tip > now)
+    const gaps = upcoming.filter((g) => !g.broadcast?.length)
+    const missing = upcoming.filter((g) => !feed.has(keyOf(g)))
+    const filled = gaps.filter((g) => {
+      const f = feed.get(keyOf(g))
+      return f && Object.values(tv(f)).some((v) => v.length)
+    })
+    let both = 0
+    let agree = 0
+    const differ = []
+    for (const g of upcoming) {
+      const f = feed.get(keyOf(g))
+      if (!f || !g.broadcast?.length) continue
+      const names = Object.values(tv(f)).flat()
+      if (!names.length) continue
+      both++
+      if (names.some((n) => g.broadcast.includes(n))) agree++
+      else if (differ.length < 8) differ.push(`${keyOf(g)}: ESPN ${g.broadcast.join(', ')} | feed ${names.join(', ')}`)
+    }
+    console.log('')
+    console.log(`${key} compare: ${ours.length} committed games, ${upcoming.length} upcoming, ${missing.length} upcoming with no feed match`)
+    for (const g of missing.slice(0, 8)) console.log(`  no match: ${keyOf(g)}`)
+    console.log(`  channel gaps ${gaps.length}, the feed fills ${filled.length}`)
+    for (const g of filled.slice(0, 10)) console.log(`  fill ${keyOf(g)}: ${JSON.stringify(tv(feed.get(keyOf(g))))}`)
+    console.log(`  both list a channel on ${both}, sharing at least one name on ${agree}`)
+    for (const d of differ) console.log(`  differ ${d}`)
+  }
 }
 
 const failed = results.filter((r) => r.required && !r.ok)
