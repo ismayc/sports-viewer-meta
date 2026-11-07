@@ -1,6 +1,6 @@
 # sports-viewer-meta
 
-The shared framework behind a family of eleven sports viewers (plus their hub page).
+The shared framework behind a family of twelve sports viewers (plus their hub page).
 It was extracted from the first three builds so the later ones didn't start from
 scratch — and every viewer since has been built by the procedure in
 [`docs/NEW-VIEWER.md`](docs/NEW-VIEWER.md).
@@ -14,7 +14,7 @@ things-that-looked-green-but-weren't.
 | Viewer | Live | Shape / notable features |
 |---|---|---|
 | [`world-cup-viewer`](https://github.com/ismayc/world-cup-viewer) | [site](https://ismayc.github.io/world-cup-viewer/) | The original. World Cup 2026 — group stage + knockout bracket |
-| [`premier-league`](https://github.com/ismayc/premier-league) | [site](https://ismayc.github.io/premier-league/) | Points table, 34 seasons of history; ~270 tests at 100% coverage |
+| [`premier-league`](https://github.com/ismayc/premier-league) | [site](https://ismayc.github.io/premier-league/) | Points table, 34 seasons of history; held at 100% coverage |
 | [`wnba-schedule`](https://github.com/ismayc/wnba-schedule) | [site](https://ismayc.github.io/wnba-schedule/) | Series playoff bracket, live alerts, quarter line scores |
 | [`nfl-schedule`](https://github.com/ismayc/nfl-schedule) | [site](https://ismayc.github.io/nfl-schedule/) | First framework consumer. Week axis, single-elimination postseason |
 | [`nba-schedule`](https://github.com/ismayc/nba-schedule) | [site](https://ismayc.github.io/nba-schedule/) | Conference playoff bracket; the base the March Madness viewers copied |
@@ -23,7 +23,8 @@ things-that-looked-green-but-weren't.
 | [`womens-world-cup-viewer`](https://github.com/ismayc/womens-world-cup-viewer) | [site](https://ismayc.github.io/womens-world-cup-viewer/) | FIFA Women's World Cup 2023, completed |
 | [`football-euros-viewer`](https://github.com/ismayc/football-euros-viewer) | [site](https://ismayc.github.io/football-euros-viewer/) | Euro 2024, completed |
 | [`copa-america-viewer`](https://github.com/ismayc/copa-america-viewer) | [site](https://ismayc.github.io/copa-america-viewer/) | Copa América 2024, completed |
-| [`fiba-womens-world-cup-viewer`](https://github.com/ismayc/fiba-womens-world-cup-viewer) | [site](https://ismayc.github.io/fiba-womens-world-cup-viewer/) | FIBA Women's World Cup 2026, Berlin. Four groups of four, top three through, group winner byes to the quarters |
+| [`fiba-womens-world-cup-viewer`](https://github.com/ismayc/fiba-womens-world-cup-viewer) | [site](https://ismayc.github.io/fiba-womens-world-cup-viewer/) | FIBA Women's World Cup 2026, Berlin, completed. Four groups of four, top three through, group winner byes to the quarters |
+| [`fiba-mens-world-cup-viewer`](https://github.com/ismayc/fiba-mens-world-cup-viewer) | [site](https://ismayc.github.io/fiba-mens-world-cup-viewer/) | FIBA Men's World Cup 2023, completed |
 | [`sports-trackers`](https://github.com/ismayc/sports-trackers) (hub) | [site](https://ismayc.github.io/sports-trackers/) | The family page — which viewers have games today, with deep links |
 
 The March Madness pair introduced the single-elimination shape: built from `nba-schedule`
@@ -115,11 +116,15 @@ scripts/
   gen-adapter.mjs    scaffold an adapter with REAL group data
   audit-family.mjs   the invariants this family keeps re-breaking, every repo at once
   rehearse-clock.mjs every sibling's own coverage gate, run at a FUTURE instant
+  scan-mobile.mjs    weekly phone-width scan of the family
+  probe-league-cdn.mjs  checks whether the NBA/WNBA league CDN is usable
+  check-fetch-sync.mjs  vendored fetch.mjs must match the canonical copy (npm run check:fetch-sync)
 templates/           ci.yml, node-guard.yml, refresh-data.yml, netlify.toml, vite.config.js
 test/smoke.mjs       proves one engine serves all three models against the live API
 test/time.mjs        offline: locale + week start really do come from the adapter
 test/clock-shim.js   the setup file rehearse-clock.mjs prepends to move "now"
 docs/PLAYBOOK.md     ← the valuable part
+docs/LINEAGES.md     the cross-family fix log
 ```
 
 ## Does it still pass tomorrow?
