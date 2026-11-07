@@ -151,6 +151,11 @@ viewer, two in the WNBA viewer (whose coverage gate was already dipping that aft
 and a branch in each March Madness repo. Two of those repos had already been "fixed" by a
 data-only sweep the day before. `docs/PLAYBOOK.md` §6 has the mechanisms.
 
+Two more scheduled workflows watch the whole family. `audit-family.yml` runs the
+cross-repo invariant checks every Monday and goes red when one fails. `scan-mobile.yml`
+runs the phone-width scan every Thursday and opens an issue when it finds a fault.
+`probe-league-cdn.yml` runs only on demand.
+
 ## Starting a new league
 
 **See [`docs/NEW-VIEWER.md`](docs/NEW-VIEWER.md)** — the step-by-step procedure the shipped
