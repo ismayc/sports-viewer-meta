@@ -120,7 +120,7 @@ scripts/
   scan-mobile.mjs    weekly phone-width scan of the family
   probe-league-cdn.mjs  checks whether the NBA/WNBA league CDN is usable
   check-fetch-sync.mjs  vendored fetch.mjs must match the canonical copy (npm run check:fetch-sync)
-templates/           ci.yml, node-guard.yml, refresh-data.yml, netlify.toml, vite.config.js
+templates/           ci.yml, node-guard.yml, refresh-data.yml, data-freshness.yml, netlify.toml, vite.config.js
 test/smoke.mjs       proves one engine serves all three models against the live API
 test/time.mjs        offline: locale + week start really do come from the adapter
 test/clock-shim.js   the setup file rehearse-clock.mjs prepends to move "now"

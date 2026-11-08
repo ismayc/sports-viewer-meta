@@ -1,0 +1,309 @@
+name: Data freshness
+
+# An independent freshness monitor, decoupled from whether any Refresh run succeeded.
+#
+# The Refresh workflow can only report a problem if it actually runs and its own fetch
+# fails in a way it recognizes. Two failure modes slip past that: a fetch that exits
+# GREEN with a warning (nothing committed, run looks fine), and the scheduled Refresh
+# not firing at all (GitHub cron runs hours late or skips). Either freezes the site
+# silently. This job watches the one thing that proves the pipeline is alive.
+#
+# It measures the age of the last SUCCESSFUL FETCH, not the last data commit. Commit
+# age is the wrong signal: a quiet week or a two-week international break legitimately
+# commits nothing while everything works. A successful fetch, whether or not it changed
+# anything, is the real "the pipeline ran and reached its data source" heartbeat. The Refresh run's
+# own conclusion is no good either: its fetch is continue-on-error, so a failed fetch
+# still exits the run green, which is the exact blind spot this monitor exists to cover.
+#
+# It shares the Refresh workflow's issue title, so the two never file duplicate stale
+# issues: whichever notices first opens the single "$STALE_ISSUE", the other sees it
+# open and skips, and either a landed Refresh commit or this job seeing a fresh fetch
+# closes it. When stale, this job exits non-zero so the scheduled run itself goes RED.
+#
+# A stale verdict has to survive several reads before it counts. GitHub's runs listing
+# is not always complete: on September 29, 2026 the same URL returned a list that stopped
+# eight days short, and the correct list under a minute later. Refresh was healthy, and
+# this job went red and filed an issue on that single read. So each read merges two
+# listings, a stale-looking read is repeated, and the newest heartbeat seen in any read
+# is the one that is judged.
+#
+# "Could not read" is its own verdict, not a stale one. When every listing call fails in
+# every read, nothing is known about the pipeline, so the run goes red with its own
+# message and files no stale-data issue: that issue says Refresh stopped fetching, which
+# would be a guess. Red rather than green, so a monitor that has lost its access (a token
+# permission change, say) cannot go silent for good.
+#
+# The issue calls never decide the verdict. A fresh run stays green when looking up or
+# closing the stale-data issue fails (the next run closes it), and a stale run stays red
+# but files nothing when the lookup fails, since filing blind could duplicate an open one.
+#
+# It heals before it alarms. Most stale verdicts are a scheduled Refresh that GitHub fired
+# hours late or never, or a source blip that has since passed, and running Refresh once
+# fixes both. So a stale verdict dispatches Refresh (or waits for one already running) and
+# reads the heartbeat again for up to HEAL_WAIT_MINUTES. A fresh fetch in that time is a
+# green run with a note, and closes any open stale-data issue. Only a Refresh that still
+# cannot fetch (a parser refusing a changed page, a blocked host) goes on to the red run
+# and the issue, which is the case that needs a person. The first run of this monitor in
+# the-unrivaled-schedule (November 8, 2026) filed a false issue: the new repo's daily
+# Refresh had not fired once yet, and a hand dispatch fetched cleanly minutes later.
+#
+# No checkout and no node actions on purpose: it reads run history from the API and uses
+# only the preinstalled gh CLI, so node-guard has nothing to flag.
+
+on:
+  schedule:
+    # Every 6 hours, at minute 45, offset from the Refresh schedules (minute 15 or 30).
+    - cron: '45 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      threshold_hours:
+        description: 'Override the staleness threshold (hours) for this run, e.g. 0 to force the stale path when testing.'
+        required: false
+        default: ''
+      self_heal:
+        description: 'Dispatch Refresh and wait for it before going red. Set false to test the red path alone.'
+        required: false
+        default: 'true'
+
+permissions:
+  actions: write # read Refresh run and step history, and dispatch Refresh to self-heal
+  issues: write # open and close the shared stale-data issue
+
+concurrency:
+  group: data-freshness
+  cancel-in-progress: false
+
+env:
+  # The slowest refresh in the family fetches once a day, so the last successful fetch
+  # should be under 24h old everywhere. 30h is past a transient source outage and most
+  # cron lateness, and well under the ~48h blind spot that once let a family-wide fetch
+  # break sit unnoticed. A daily refresh that GitHub fires very late can still cross it;
+  # the self-heal below runs Refresh then, so that case ends green, not as an issue.
+  FRESH_MAX_HOURS: 30
+  # How long a stale verdict waits for the Refresh it dispatched to fetch, in minutes,
+  # read once a minute. Refresh runs in the family took 21 to 65 seconds (median) and
+  # 433 seconds at most over their last 20 runs (November 8, 2026), queue time included.
+  HEAL_WAIT_MINUTES: 20
+  # SAME title as refresh-data.yml's STALE_ISSUE, deliberately: one shared issue.
+  STALE_ISSUE: 'Refresh has not landed for days'
+  # The Refresh workflow this monitors. FETCH_OK_STEP is the step that runs ONLY on a
+  # successful fetch (`if: steps.fetch.outcome == 'success'`) and then always succeeds,
+  # so its conclusion being "success" is a name-independent proof the fetch reached
+  # its data source. The fetch step itself is named differently across the family ("Fetch ..." vs
+  # "Regenerate ..."), but this step's name is identical in every repo.
+  REFRESH_WORKFLOW: refresh-data.yml
+  FETCH_OK_STEP: 'Summarize what changed'
+  # How many times a stale-looking heartbeat is read before it is believed, and the
+  # pause between reads in seconds. A fresh first read ends the loop at once, so only a
+  # run that is about to go red pays the wait: three pauses, three minutes at most.
+  FRESH_READ_TRIES: 4
+  FRESH_READ_WAIT: 60
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Age of the last successful fetch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OVERRIDE: ${{ github.event.inputs.threshold_hours }}
+          HEAL: ${{ github.event.inputs.self_heal }}
+        run: |
+          set -euo pipefail
+          threshold="${OVERRIDE:-$FRESH_MAX_HOURS}"
+          now=$(date -u +%s)
+
+          # One read of the heartbeat. Walk recent Refresh runs newest-first and stop at
+          # the first where the fetch-success step concluded "success"; its finish time
+          # is the heartbeat. The run ids come from two listings, the workflow's own and
+          # the repo-wide one, merged newest-first (run ids only grow), so a hole in one
+          # listing is covered by the other. A listing call that fails adds no ids.
+          #
+          # Prints one line: "unreadable" when BOTH listing calls failed, else "ok" followed
+          # by the heartbeat if one was found ("ok" alone means the history was read and
+          # holds no successful fetch, which is a real stale signal).
+          read_heartbeat() {
+            local wf rw ok=0 ids id line
+            if wf=$(gh api "repos/$GH_REPO/actions/workflows/$REFRESH_WORKFLOW/runs?per_page=15&status=completed" \
+                --jq '.workflow_runs[].id'); then ok=1; else wf=""; fi
+            if rw=$(gh api "repos/$GH_REPO/actions/runs?per_page=100&status=completed" \
+                --jq '.workflow_runs[] | select((.path // "") | endswith("/" + env.REFRESH_WORKFLOW)) | .id'); then ok=1; else rw=""; fi
+            if [ "$ok" = 0 ]; then
+              echo "unreadable"
+              return 0
+            fi
+            # awk, not grep, for the digits filter: grep exits 1 on no match, and under
+            # pipefail that would end the step on an empty but successful listing.
+            ids=$(printf '%s\n%s\n' "$wf" "$rw" | sort -rn | awk '/^[0-9]+$/ && !seen[$0]++ && ++n <= 15')
+            for id in $ids; do
+              line=$(gh api "repos/$GH_REPO/actions/runs/$id/jobs" \
+                --jq '([.jobs[].steps[] | select(.name == env.FETCH_OK_STEP)][0]) // {} | "\(.conclusion // "") \(.completed_at // "")"' 2>/dev/null || echo "")
+              if [ "${line%% *}" = "success" ]; then
+                echo "ok ${line#* }"
+                return 0
+              fi
+            done
+            echo "ok"
+          }
+
+          # A listing can only UNDER-report: a run it names is real, and that run's step
+          # times are read from the run itself. So the newest heartbeat across every read
+          # is the true one, and a read that looks stale is repeated before it is believed.
+          fetch_at=""
+          age_h=99999
+          readable=0
+          for attempt in $(seq 1 "$FRESH_READ_TRIES"); do
+            got=$(read_heartbeat)
+            if [ "$got" != "unreadable" ]; then
+              readable=1
+              got=${got#ok}
+              got=${got# }
+              if [ -n "$got" ] && [[ "$got" > "$fetch_at" ]]; then
+                fetch_at="$got"
+                age_h=$(( ( now - $(date -u -d "$fetch_at" +%s) ) / 3600 ))
+              fi
+            fi
+            if [ "$age_h" -le "$threshold" ]; then
+              break
+            fi
+            if [ "$attempt" -lt "$FRESH_READ_TRIES" ]; then
+              echo "::warning::read $attempt of $FRESH_READ_TRIES looks stale (newest heartbeat so far: ${fetch_at:-none}); reading again in ${FRESH_READ_WAIT}s"
+              sleep "$FRESH_READ_WAIT"
+            fi
+          done
+
+          if [ "$readable" = 0 ]; then
+            echo "::error::could not read the Refresh run history in $attempt reads (every listing call failed), so freshness is unknown. No stale-data issue was filed or closed."
+            echo "Could not read the Refresh run history in $attempt reads; freshness is unknown. No issue filed or closed." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          # Self-heal (see the header). One Refresh at most per monitor run: dispatch it
+          # unless one is already queued or running, then read the heartbeat once a minute.
+          # A listing that fails here counts as "none running", so the worst case is one
+          # extra Refresh, which its own concurrency group queues behind the first.
+          stale_at="${fetch_at:-none}"
+          healed=0
+          if [ "$age_h" -gt "$threshold" ] && [ "$HEAL" != "false" ]; then
+            active=$(gh api "repos/$GH_REPO/actions/workflows/$REFRESH_WORKFLOW/runs?per_page=10" \
+              --jq '[.workflow_runs[] | select(.status != "completed")] | length' 2>/dev/null || echo 0)
+            waiting=0
+            if [ "$active" != 0 ]; then
+              echo "::warning::stale (newest heartbeat: $stale_at); a Refresh run is already in flight, waiting for it"
+              waiting=1
+            elif gh workflow run "$REFRESH_WORKFLOW"; then
+              echo "::warning::stale (newest heartbeat: $stale_at); dispatched Refresh, waiting for it to fetch"
+              waiting=1
+            else
+              echo "::warning::stale, and dispatching Refresh failed; going on to the stale verdict"
+            fi
+            if [ "$waiting" = 1 ]; then
+              for minute in $(seq 1 "$HEAL_WAIT_MINUTES"); do
+                sleep 60
+                got=$(read_heartbeat)
+                [ "$got" = "unreadable" ] && continue
+                got=${got#ok}
+                got=${got# }
+                if [ -n "$got" ] && [[ "$got" > "$fetch_at" ]]; then
+                  fetch_at="$got"
+                  age_h=$(( ( now - $(date -u -d "$fetch_at" +%s) ) / 3600 ))
+                fi
+                if [ "$age_h" -le "$threshold" ]; then
+                  healed=1
+                  break
+                fi
+              done
+            fi
+          fi
+
+          if [ -z "$fetch_at" ]; then
+            detail="no successful fetch found in the recent Refresh runs"
+          else
+            detail="last successful fetch $fetch_at (${age_h}h ago)"
+          fi
+          reads=""
+          if [ "$attempt" -gt 1 ]; then
+            reads=" Took $attempt reads of the run history."
+          fi
+          if [ "$healed" = 1 ]; then
+            detail="$detail, after self-heal: the heartbeat was $stale_at, so this run dispatched Refresh, which fetched in $minute min"
+          elif [ "$age_h" -gt "$threshold" ] && [ "$HEAL" != "false" ]; then
+            reads="$reads Self-heal ran Refresh and it did not fetch within ${HEAL_WAIT_MINUTES} min."
+          fi
+          echo "$detail. Threshold: ${threshold}h.$reads" | tee -a "$GITHUB_STEP_SUMMARY"
+
+          # The open-issue lookup is retried, and a lookup that never answers is a known
+          # state. On October 3, 2026 the data was 0h old and this call got a GitHub 504;
+          # under `set -e` that ended the step and reddened a fresh run.
+          open=""
+          looked_up=0
+          for try in 1 2 3; do
+            if open=$(gh issue list --state open --search "\"$STALE_ISSUE\"" --json number --jq '.[0].number // empty'); then
+              looked_up=1
+              break
+            fi
+            open=""
+            if [ "$try" -lt 3 ]; then
+              sleep 20
+            fi
+          done
+
+          if [ "$age_h" -le "$threshold" ]; then
+            # Fresh is the verdict whatever the issue calls do; a leftover issue is
+            # closed by the next run.
+            if [ "$looked_up" = 0 ]; then
+              echo "::warning::could not look up the stale-data issue; the next run closes it if one is open"
+              echo "Fresh; could not look up the stale-data issue." >> "$GITHUB_STEP_SUMMARY"
+            elif [ -n "$open" ]; then
+              if gh issue close "$open" --comment "The pipeline is alive again: $detail (run ${RUN_URL})."; then
+                echo "Fresh; closed #$open." >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "::warning::could not close #$open; the next run tries again"
+                echo "Fresh; could not close #$open." >> "$GITHUB_STEP_SUMMARY"
+              fi
+            else
+              echo "Fresh; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+
+          # Stale. Make the run RED and ensure exactly one open issue.
+          echo "::error::$detail exceeds the ${threshold}h freshness threshold"
+          if [ "$looked_up" = 0 ]; then
+            # Filing blind could duplicate an open issue; the red run is the signal.
+            echo "Stale, but the stale-data issue lookup failed, so none was filed." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ -n "$open" ]; then
+            echo "Stale-data issue #$open already open, not re-filing." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          healnote=""
+          if [ "$HEAL" != "false" ]; then
+            healnote=" This monitor already ran Refresh once to self-heal, and it did not fetch within ${HEAL_WAIT_MINUTES} minutes, so a late or skipped schedule is not the cause."
+          fi
+          cat > /tmp/issue-body.md <<EOF
+          The data pipeline has not completed a successful fetch recently: $detail, past the
+          ${threshold}h freshness threshold. The site is serving the last committed snapshot.
+          Nothing wrong has shipped, but something is stopping Refresh from reaching its data
+          source.$healnote
+
+          Freshness monitor run: $RUN_URL
+
+          ## What to do
+
+          1. Open the latest **Refresh data** run and read the error in its fetch step: a
+             source change (an endpoint dropping a query shape, a host block, a renamed
+             label or column on a scraped page) stops the fetch on purpose, and a
+             family-wide one can freeze every viewer at once.
+          2. Fix the cause (usually in the repo's own \`scripts/\`), then dispatch
+             **Refresh data**. A successful fetch closes this issue; so does this monitor's
+             next run.
+
+          Filed by \`.github/workflows/data-freshness.yml\`.
+          EOF
+          gh issue create --title "$STALE_ISSUE" --body-file /tmp/issue-body.md
+          exit 1

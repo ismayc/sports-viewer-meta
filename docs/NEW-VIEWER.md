@@ -188,13 +188,24 @@ League identity is scattered (PLAYBOOK §10 debt #2) — change all of it:
   source, localStorage keys carry this app's prefix and never a sibling's, and generated data
   keeps its do-not-edit banner. The scripts-runtime rule is also a grep in `ci.yml`; the test
   version is the one that runs locally before you push.
-- **CI** (`.github/workflows/`): `ci.yml` (test → coverage badge → build → deploy Pages, Netlify
-  gated on its token, a `scripts-runtime` grep that enforces Node-built-ins-only under `scripts/`),
-  `node-guard.yml` (the shared `ismayc/gha-guards` reusable workflow), and `refresh-data.yml`
-  (cron → regenerate → open a PR; gate the cron to the sport's active months so it isn't a
-  year-round no-op — March Madness runs its cron only in March/April).
+- **CI** (`.github/workflows/`, start from `templates/github-workflows/`): `ci.yml` (test →
+  coverage badge → build → deploy Pages, a `scripts-runtime` grep that enforces
+  Node-built-ins-only under `scripts/`), `node-guard.yml` (the shared `ismayc/gha-guards`
+  reusable workflow), and `refresh-data.yml` (cron → regenerate → gate → commit to `main`; gate
+  the cron to the sport's active months so it isn't a year-round no-op: March Madness runs its
+  cron only in March and April). A viewer that refreshes also gets `data-freshness.yml`, copied
+  unchanged: it is league-neutral, it runs Refresh once to heal a stale fetch before it files an
+  issue, and the audit holds every copy, the template included, byte-identical. Add the repo to
+  `LIVE` in `scripts/audit-family.mjs`. Dispatch Refresh once right after the first push, or the
+  monitor's first run finds no fetch at all.
 - **Deploy**: `base: './'` (serves both the Pages subpath and the Netlify root). New GitHub repo
-  under `ismayc/`, GitHub Pages from `main`.
+  under `ismayc/`, GitHub Pages from `main`. Netlify builds from its own GitHub integration on
+  every push (refresh commits included), so there is no Netlify job in `ci.yml` and no token
+  secret. Create the site in the `ismayc` team, linked to the repo, by copying a sibling's
+  GitHub App installation (how the Unrivaled site was made on November 8, 2026):
+  `netlify api createSiteInTeam --data '{"account_slug":"ismayc","body":{"name":"<site>","repo":{"provider":"github","id":<repo id>,"repo":"ismayc/<repo>","private":false,"branch":"main","cmd":"npm run build","dir":"dist","functions_dir":"netlify/functions","installation_id":<from a sibling's getSite build_settings>}}}'`.
+  Then confirm a push deploys by itself, and run `node scripts/smoke-prod.mjs`, which fetches
+  the calendar feed from the host named by `feedHost`.
 
 ## 8. Register it in the hub
 

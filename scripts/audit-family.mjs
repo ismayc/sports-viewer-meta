@@ -381,6 +381,11 @@ for (const repo of APPS) {
 // workflow file name and step name, which 13c pins), so any difference is a
 // hardening that reached some repos and not others. node-guard.yml is a
 // three-line caller of the shared guard and has no reason to differ either.
+//
+// Both files also ship in templates/github-workflows/, where a new viewer copies
+// them from, so the template must match the live copies too. The Unrivaled viewer
+// (November 7, 2026) got its monitor by hand because the template had none, and its
+// first scheduled run went red on a repo whose Refresh had not fired yet.
 for (const f of ['data-freshness.yml', 'node-guard.yml']) {
   const copies = new Map()
   for (const repo of LIVE) {
@@ -400,6 +405,10 @@ for (const f of ['data-freshness.yml', 'node-guard.yml']) {
       for (const repo of repos) fail(repo, 'live-workflows', `${WF}/${f} differs from ${agree.join(', ')}`)
     }
   }
+  const tpl = read('sports-viewer-meta', `templates/github-workflows/${f}`)
+  const live = [...tallies.entries()].sort((a, b) => b[1].length - a[1].length)[0]
+  if (tpl == null) fail('sports-viewer-meta', 'live-workflows', `templates/github-workflows/${f} is missing, so a new viewer has no copy to start from`)
+  else if (live && tpl !== live[0]) fail('sports-viewer-meta', 'live-workflows', `templates/github-workflows/${f} differs from ${live[1].join(', ')}`)
 }
 
 // 13c. The refresh workflow's hardenings, one assertion per incident.
