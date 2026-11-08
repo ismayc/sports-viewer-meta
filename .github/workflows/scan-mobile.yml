@@ -63,6 +63,7 @@ jobs:
           - { dir: fiba-mens-world-cup-viewer, slug: fiba-mens-world-cup-viewer }
           - { dir: the-mens-march-madness, slug: mens-march-madness }
           - { dir: the-womens-march-madness, slug: womens-march-madness }
+          - { dir: the-unrivaled-schedule, slug: unrivaled-schedule }
           - { dir: hub, slug: sports-trackers }
     steps:
       - name: Check out the meta repo

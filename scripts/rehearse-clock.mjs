@@ -66,12 +66,12 @@ const META = resolve(HERE, '..')
 const FAMILY = resolve(META, '..')
 const SHIM = join(META, 'test', 'clock-shim.js')
 
-// The eleven viewers plus the hub, matching scripts/audit-family.mjs.
+// The thirteen viewers plus the hub, matching scripts/audit-family.mjs.
 const APPS = [
   'the-nba-schedule', 'the-wnba-schedule', 'the-nfl-schedule', 'premier-league',
   'world-cup-viewer', 'womens-world-cup-viewer', 'football-euros-viewer',
-  'copa-america-viewer', 'fiba-womens-world-cup-viewer',
-  'the-mens-march-madness', 'the-womens-march-madness', 'hub',
+  'copa-america-viewer', 'fiba-womens-world-cup-viewer', 'fiba-mens-world-cup-viewer',
+  'the-mens-march-madness', 'the-womens-march-madness', 'the-unrivaled-schedule', 'hub',
 ]
 
 // A generic ladder, denser at the near end because that is where a finding is urgent:

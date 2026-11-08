@@ -33,8 +33,8 @@ const FAMILY = resolve(META, '..')
 const APPS = [
   'the-nba-schedule', 'the-wnba-schedule', 'the-nfl-schedule', 'premier-league',
   'world-cup-viewer', 'womens-world-cup-viewer', 'football-euros-viewer',
-  'copa-america-viewer', 'fiba-womens-world-cup-viewer',
-  'the-mens-march-madness', 'the-womens-march-madness', 'hub',
+  'copa-america-viewer', 'fiba-womens-world-cup-viewer', 'fiba-mens-world-cup-viewer',
+  'the-mens-march-madness', 'the-womens-march-madness', 'the-unrivaled-schedule', 'hub',
 ]
 const REPOS = APPS.filter((a) => a !== 'world-cup-viewer' && a !== 'hub')
 

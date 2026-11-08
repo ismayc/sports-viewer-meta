@@ -35,7 +35,8 @@ const META = resolve(HERE, '..')
 const FAMILY = process.env.AUDIT_FAMILY_ROOT ? resolve(process.env.AUDIT_FAMILY_ROOT) : resolve(META, '..')
 const JSON_OUT = process.argv.includes('--json')
 
-// The twelve viewers plus the hub. sports-viewer-meta is not an app and is
+// The thirteen viewers plus the hub (the-unrivaled-schedule joined November 8, 2026,
+// with LIVE below). sports-viewer-meta is not an app and is
 // excluded deliberately. fiba-mens-world-cup-viewer joined the family on
 // September 15, 2026 but not this list until September 19, so for four days the
 // audit never looked at it, and the one check that would have noticed (the
@@ -45,7 +46,7 @@ const APPS = [
   'the-nba-schedule', 'the-wnba-schedule', 'the-nfl-schedule', 'premier-league',
   'world-cup-viewer', 'womens-world-cup-viewer', 'football-euros-viewer',
   'copa-america-viewer', 'fiba-womens-world-cup-viewer', 'fiba-mens-world-cup-viewer',
-  'the-mens-march-madness', 'the-womens-march-madness', 'hub',
+  'the-mens-march-madness', 'the-womens-march-madness', 'the-unrivaled-schedule', 'hub',
 ]
 
 // Repos whose data pipeline goes through the shared ESPN transport.
@@ -309,7 +310,7 @@ for (const repo of APPS) {
 // line at the indent of the first item under a `steps:` key, and comment lines
 // are dropped so a hardening that is only DESCRIBED in a comment does not count.
 // ---------------------------------------------------------------------------
-const LIVE = ['the-nba-schedule', 'the-wnba-schedule', 'the-nfl-schedule', 'premier-league']
+const LIVE = ['the-nba-schedule', 'the-wnba-schedule', 'the-nfl-schedule', 'premier-league', 'the-unrivaled-schedule']
 const WF = '.github/workflows'
 
 const stepsOf = (yml) => {
@@ -525,7 +526,11 @@ for (const repo of LIVE) {
 // five tries fails the run; on September 26, 2026 the WNBA watch lost a run to a
 // 502 burst that the refresh two minutes later rode out. The guards test in each
 // repo pins WATCH_TRIES; this catches a repo whose guard test lost the pin.
-for (const repo of LIVE) {
+// the-unrivaled-schedule is exempt: the watch probes ESPN's scoreboard, which does not
+// carry that league. Its rollover is still by hand (`--season 2028` on the fetch), and no
+// watch for the league's own schedule page exists yet (noted November 8, 2026).
+const SEASON_WATCH = LIVE.filter((r) => r !== 'the-unrivaled-schedule')
+for (const repo of SEASON_WATCH) {
   const yml = read(repo, `${WF}/new-season-watch.yml`)
   const say = (msg) => fail(repo, 'live-workflows', `new-season-watch.yml: ${msg}`)
   if (!yml) { say('missing'); continue }

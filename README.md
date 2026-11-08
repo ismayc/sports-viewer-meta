@@ -1,6 +1,6 @@
 # sports-viewer-meta
 
-The shared framework behind a family of twelve sports viewers (plus their hub page).
+The shared framework behind a family of thirteen sports viewers (plus their hub page).
 It was extracted from the first three builds so the later ones didn't start from
 scratch — and every viewer since has been built by the procedure in
 [`docs/NEW-VIEWER.md`](docs/NEW-VIEWER.md).
@@ -25,6 +25,7 @@ things-that-looked-green-but-weren't.
 | [`copa-america-viewer`](https://github.com/ismayc/copa-america-viewer) | [site](https://ismayc.github.io/copa-america-viewer/) | Copa América 2024, completed |
 | [`fiba-womens-world-cup-viewer`](https://github.com/ismayc/fiba-womens-world-cup-viewer) | [site](https://ismayc.github.io/fiba-womens-world-cup-viewer/) | FIBA Women's World Cup 2026, Berlin, completed. Four groups of four, top three through, group winner byes to the quarters |
 | [`fiba-mens-world-cup-viewer`](https://github.com/ismayc/fiba-mens-world-cup-viewer) | [site](https://ismayc.github.io/fiba-mens-world-cup-viewer/) | FIBA Men's World Cup 2023, completed |
+| [`unrivaled-schedule`](https://github.com/ismayc/unrivaled-schedule) | [site](https://ismayc.github.io/unrivaled-schedule/) | Unrivaled 3-on-3, with 2025 and 2026 in History. The one viewer not on ESPN: its refresh reads the league's own pages, and its build publishes `hub-feed.json` for the hub |
 | [`sports-trackers`](https://github.com/ismayc/sports-trackers) (hub) | [site](https://ismayc.github.io/sports-trackers/) | The family page — which viewers have games today, with deep links |
 
 The March Madness pair introduced the single-elimination shape: built from `nba-schedule`

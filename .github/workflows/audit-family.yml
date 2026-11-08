@@ -44,8 +44,9 @@ jobs:
           for slug in nba-schedule wnba-schedule nfl-schedule premier-league \
                       world-cup-viewer womens-world-cup-viewer football-euros-viewer \
                       copa-america-viewer fiba-womens-world-cup-viewer fiba-mens-world-cup-viewer \
-                      mens-march-madness womens-march-madness sports-trackers; do
+                      mens-march-madness womens-march-madness unrivaled-schedule sports-trackers; do
             case "$slug" in
+              unrivaled-schedule)    dir=the-unrivaled-schedule ;;
               nba-schedule)          dir=the-nba-schedule ;;
               wnba-schedule)         dir=the-wnba-schedule ;;
               nfl-schedule)          dir=the-nfl-schedule ;;

@@ -203,6 +203,17 @@ Pages URL, calendar host, season months). The hub fetches the same scoreboard cl
 whether the sport has games today and deep-links into the viewer — so a new viewer appears on the
 family page as soon as it is registered.
 
+**A league ESPN does not carry** (the first was Unrivaled, November 8, 2026) registers a
+`feedUrl` in place of `espnPath`: a JSON file the viewer's own build publishes on the shared
+`ismayc.github.io` origin, so no CORS is needed. Copy the shape from the-unrivaled-schedule
+(`src/utils/hubFeed.js` and the `hubFeed` plugin in `vite.config.js`); the hub reads it in
+`src/services/feed.js`. Such a viewer also needs the other family lists by hand, since the
+audits key on them: `APPS` in `scripts/audit-family.mjs`, `check-fetch-sync.mjs`, and
+`rehearse-clock.mjs`; the clone loop in `audit-family.yml`; and the matrices in
+`scan-mobile.yml` and `rehearse-clock.yml`. Add it to `LIVE` in `audit-family.mjs` too if it
+refreshes, and expect the `data-freshness.yml` byte-equality check to hold it to the canonical
+monitor.
+
 ---
 
 ## The checklist
