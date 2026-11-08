@@ -212,7 +212,10 @@ audits key on them: `APPS` in `scripts/audit-family.mjs`, `check-fetch-sync.mjs`
 `rehearse-clock.mjs`; the clone loop in `audit-family.yml`; and the matrices in
 `scan-mobile.yml` and `rehearse-clock.yml`. Add it to `LIVE` in `audit-family.mjs` too if it
 refreshes, and expect the `data-freshness.yml` byte-equality check to hold it to the canonical
-monitor.
+monitor. Its new-season watch cannot probe ESPN either: copy the-unrivaled-schedule's
+`scripts/check-new-season.mjs`, which reads the league's own season list, and add the repo to
+`PAGE_WATCH` in `audit-family.mjs`. Find out first how the league site answers a request for a
+season it does not have: Unrivaled's answers with the current season's games.
 
 ---
 

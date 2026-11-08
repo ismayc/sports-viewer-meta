@@ -526,11 +526,10 @@ for (const repo of LIVE) {
 // five tries fails the run; on September 26, 2026 the WNBA watch lost a run to a
 // 502 burst that the refresh two minutes later rode out. The guards test in each
 // repo pins WATCH_TRIES; this catches a repo whose guard test lost the pin.
-// the-unrivaled-schedule is exempt: the watch probes ESPN's scoreboard, which does not
-// carry that league. Its rollover is still by hand (`--season 2028` on the fetch), and no
-// watch for the league's own schedule page exists yet (noted November 8, 2026).
-const SEASON_WATCH = LIVE.filter((r) => r !== 'the-unrivaled-schedule')
-for (const repo of SEASON_WATCH) {
+// the-unrivaled-schedule is not on ESPN: its watch reads the league's own schedule page
+// with getPage (two requests a run), so its probe check differs (added November 8, 2026).
+const PAGE_WATCH = new Set(['the-unrivaled-schedule'])
+for (const repo of LIVE) {
   const yml = read(repo, `${WF}/new-season-watch.yml`)
   const say = (msg) => fail(repo, 'live-workflows', `new-season-watch.yml: ${msg}`)
   if (!yml) { say('missing'); continue }
@@ -545,7 +544,16 @@ for (const repo of SEASON_WATCH) {
   if (!/git ls-remote --exit-code --heads origin "\$BRANCH"/.test(yml)) say('no existing-branch guard, so the rollover PR is drafted again every day')
   const src = read(repo, 'scripts/check-new-season.mjs') || ''
   const tries = src.match(/^const WATCH_TRIES = (\d+)$/m)
-  if (!tries || Number(tries[1]) < 8 || !/getJson\(`[^`]*scoreboard[^`]*`, WATCH_TRIES\)/.test(src)) {
+  if (PAGE_WATCH.has(repo)) {
+    // The league site answers an unknown `?season=` with the CURRENT season's games, so
+    // the watch must check which season the page shows before it counts anything.
+    if (!tries || Number(tries[1]) < 8 || !/getPage\([^)]*, WATCH_TRIES\)/.test(src)) {
+      fail(repo, 'live-workflows', 'scripts/check-new-season.mjs: the page probe does not pass WATCH_TRIES (at least 8) to getPage, so one 502 burst reddens the daily watch')
+    }
+    if (!/shown !== NEXT/.test(src)) {
+      fail(repo, 'live-workflows', 'scripts/check-new-season.mjs: no check that the page shows the season asked for, so the current season reads as a release')
+    }
+  } else if (!tries || Number(tries[1]) < 8 || !/getJson\(`[^`]*scoreboard[^`]*`, WATCH_TRIES\)/.test(src)) {
     fail(repo, 'live-workflows', 'scripts/check-new-season.mjs: the scoreboard probe does not pass WATCH_TRIES (at least 8) to getJson, so one 502 burst reddens the daily watch')
   }
 }
