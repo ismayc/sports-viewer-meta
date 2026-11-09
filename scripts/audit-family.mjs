@@ -412,10 +412,18 @@ for (const f of ['data-freshness.yml', 'node-guard.yml']) {
 }
 
 // 13c. The refresh workflow's hardenings, one assertion per incident.
+//
+// The template in sports-viewer-meta is held to the same assertions. It cannot be
+// compared byte for byte (its cron, fetch command, and messages are per league), and
+// until November 8, 2026 it was the August 29 version: no fetch retry, no signal
+// issues, and the coverage gate, so a viewer started from it lacked every hardening
+// below.
+const TEMPLATE = 'sports-viewer-meta'
+const wfFile = (repo, f) => (repo === TEMPLATE ? `templates/github-workflows/${f}` : `${WF}/${f}`)
 const titles = { GATE_ISSUE: new Map(), STALE_ISSUE: new Map() }
-for (const repo of LIVE) {
-  const yml = read(repo, `${WF}/refresh-data.yml`)
-  if (!yml) { fail(repo, 'live-workflows', `${WF}/refresh-data.yml is missing`); continue }
+for (const repo of [...LIVE, TEMPLATE]) {
+  const yml = read(repo, wfFile(repo, 'refresh-data.yml'))
+  if (!yml) { fail(repo, 'live-workflows', `${wfFile(repo, 'refresh-data.yml')} is missing`); continue }
   const steps = stepsOf(yml)
   const byId = (id) => steps.find((s) => s.id === id)
   const say = (msg) => fail(repo, 'live-workflows', `refresh-data.yml: ${msg}`)
@@ -438,7 +446,7 @@ for (const repo of LIVE) {
   // every repo, because the fetch step itself is named differently per league.
   // Rename it in one repo and that repo's monitor reads every run as a failed
   // fetch and files a false stale-data issue.
-  const fresh = read(repo, `${WF}/data-freshness.yml`)
+  const fresh = read(repo, wfFile(repo, 'data-freshness.yml'))
   const okStep = (fresh && envOf(fresh, 'FETCH_OK_STEP')) || 'Summarize what changed'
   const summarize = steps.find((s) => s.name === okStep)
   if (!summarize) say(`no step named "${okStep}", which data-freshness.yml keys on to see a successful fetch`)
@@ -497,7 +505,8 @@ for (const repo of LIVE) {
   else if (wfGroup[1] === 'pages') say('the workflow-level concurrency group is `pages`, which holds the deploy slot for the whole fetch')
   if (!/^\s{4}concurrency:\n\s+group: pages/m.test(yml)) say('the deploy job has no job-level `pages` concurrency group')
 }
-// Across the four, a title that differs is a rename that did not travel.
+// Across the live repos and the template, a title that differs is a rename that did
+// not travel.
 for (const [k, m] of Object.entries(titles)) {
   const vals = new Set(m.values())
   if (vals.size < 2) continue

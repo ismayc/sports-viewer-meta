@@ -193,7 +193,9 @@ League identity is scattered (PLAYBOOK §10 debt #2) — change all of it:
   Node-built-ins-only under `scripts/`), `node-guard.yml` (the shared `ismayc/gha-guards`
   reusable workflow), and `refresh-data.yml` (cron → regenerate → gate → commit to `main`; gate
   the cron to the sport's active months so it isn't a year-round no-op: March Madness runs its
-  cron only in March and April). A viewer that refreshes also gets `data-freshness.yml`, copied
+  cron only in March and April). Edit only the lines marked `TODO` in `refresh-data.yml`; the
+  audit holds it to the live viewers' hardenings, and its gate needs the live suite
+  (`npm run test:data`, `test/live/`) and the frozenData plugin, copied from the-nba-schedule. A viewer that refreshes also gets `data-freshness.yml`, copied
   unchanged: it is league-neutral, it runs Refresh once to heal a stale fetch before it files an
   issue, and the audit holds every copy, the template included, byte-identical. Add the repo to
   `LIVE` in `scripts/audit-family.mjs`. Dispatch Refresh once right after the first push, or the
