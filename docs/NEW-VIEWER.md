@@ -189,8 +189,10 @@ League identity is scattered (PLAYBOOK §10 debt #2) — change all of it:
   keeps its do-not-edit banner. The scripts-runtime rule is also a grep in `ci.yml`; the test
   version is the one that runs locally before you push.
 - **CI** (`.github/workflows/`, start from `templates/github-workflows/`): `ci.yml` (test →
-  coverage badge → build → deploy Pages, a `scripts-runtime` grep that enforces
-  Node-built-ins-only under `scripts/`), `node-guard.yml` (the shared `ismayc/gha-guards`
+  coverage badge → live suite → build → deploy Pages, a `scripts-runtime` grep that enforces
+  Node-built-ins-only under `scripts/`, the next-refresh and clock rehearsals, and a
+  production smoke test; edit only its `TODO` lines, the fetch command and this repo's folder
+  name), `node-guard.yml` (the shared `ismayc/gha-guards`
   reusable workflow), and `refresh-data.yml` (cron → regenerate → gate → commit to `main`; gate
   the cron to the sport's active months so it isn't a year-round no-op: March Madness runs its
   cron only in March and April). Edit only the lines marked `TODO` in `refresh-data.yml`; the

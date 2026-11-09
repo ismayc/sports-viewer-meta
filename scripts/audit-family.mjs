@@ -523,10 +523,25 @@ for (const [k, m] of Object.entries(titles)) {
 // what the next refresh would and runs the same gate: it is the only check that
 // would have caught the NFL viewer's September 6, 2026 week-one break two days
 // early. Its fetch must not turn CI red on an ESPN blip.
-for (const repo of LIVE) {
-  const yml = read(repo, `${WF}/ci.yml`)
-  if (!yml) continue // check 3 reports a missing ci.yml
+//
+// The template is held to the same rules (added November 8, 2026, when it was rebuilt
+// from the August 14 version, which had neither job). A clock rehearsal split into a
+// matrix must use the same offsets as LADDER_DAYS in rehearse-clock.mjs, or a rung is
+// silently skipped.
+const ladder = (readFileSync(join(META, 'scripts/rehearse-clock.mjs'), 'utf8').match(/^const LADDER_DAYS = (\[[^\]]*\])/m) || [])[1]
+for (const repo of [...LIVE, TEMPLATE]) {
+  const yml = read(repo, wfFile(repo, 'ci.yml'))
+  if (!yml) {
+    if (repo === TEMPLATE) fail(repo, 'live-workflows', 'templates/github-workflows/ci.yml is missing')
+    continue // check 3 reports a missing ci.yml in a viewer
+  }
   const say = (msg) => fail(repo, 'live-workflows', `ci.yml: ${msg}`)
+  const days = yml.match(/^\s+days: (\[[^\]]*\])/m)
+  if (days && ladder && days[1].replace(/\s/g, '') !== ladder.replace(/\s/g, '')) say(`the rehearse-clock matrix days ${days[1]} differ from LADDER_DAYS ${ladder} in rehearse-clock.mjs`)
+  if (repo === TEMPLATE) {
+    if (!/^concurrency:\n\s+group:.*github\.ref/m.test(yml)) say('the workflow-level concurrency group is not per-ref')
+    if (!/^\s{4}concurrency:\n\s+group: pages/m.test(yml)) say('the Pages deploy job has no job-level `pages` concurrency group')
+  }
   const test = blockOf(yml, 'test', 2)
   if (!test || !/npm run test:data\b/.test(test)) say('the `test` job does not run `npm run test:data`, so the committed data modules are never tested in CI')
   const rehearsal = blockOf(yml, 'refresh-rehearsal', 2)

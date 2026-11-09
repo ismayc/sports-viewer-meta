@@ -1,8 +1,21 @@
-# Copied from the-nba-schedule (the most recently fixed version — including the
-# per-ref concurrency group and the job-level Pages deploy lock, PLAYBOOK §8).
-# Nothing here is league-specific; drop it into .github/workflows/ as-is. Requires
-# the package to define coverage:badge (writes public/coverage.json) — see the
-# family ship checklist in docs/STATE.md.
+# Copied from the-nba-schedule (rebuilt November 8, 2026; the template before that was
+# the August 14 version, with no live suite, no rehearsals, no production smoke test,
+# and a token-based Netlify deploy job the family no longer uses). Every live copy
+# differs from this one only in the lines marked TODO, and scripts/audit-family.mjs
+# (checks 3 and 13d) holds this file and every live copy to the same rules.
+#
+# Per-league edits, and nothing else:
+#   1. The fetch command in the refresh-rehearsal job (the same one refresh-data.yml
+#      runs), and the data paths it diffs, if the app commits data beyond src/data and
+#      public/logos.
+#   2. This repo's folder name in the rehearse-clock job, in five places (the checkout
+#      path, the npm cache path, the working directory, --repo, and the artifact name).
+#      It is the folder name under sports-trackers/ (the-nba-schedule), not the GitHub
+#      repo name (nba-schedule).
+#
+# It needs these package scripts: coverage:badge (the full suite, writing
+# public/coverage.json for the README badge), test:data (the live suite in test/live/),
+# and build. It also needs scripts/smoke-prod.mjs. Copy them from the-nba-schedule.
 name: CI
 
 on:
@@ -14,7 +27,7 @@ permissions:
   contents: read
 
 # Per-ref group: a PR branch's runs must never occupy main's slot. A single static
-# group bit the NBA viewer on 2026-08-13 — GitHub keeps one running + one pending run
+# group bit the NBA viewer on 2026-08-13: GitHub keeps one running + one pending run
 # per group and each new arrival CANCELS the previous pending one (cancel-in-progress
 # only protects the RUNNING run), so while a busy PR was pushing, main's CI and its
 # deploy kept getting cancelled before they could start. The only lock that must
@@ -37,12 +50,18 @@ jobs:
       # Runs the full suite AND writes public/coverage.json for the README badge.
       # Replaces a separate `npm test` step so the suite isn't run twice.
       - run: npm run coverage:badge
+      # The main suite above reads FROZEN data (the frozenData plugin in vite.config.js),
+      # so it says nothing about the committed data modules. This does: the live suite in
+      # test/live/, the same gate refresh-data.yml runs, against what is committed now.
+      # It is also where a too-strict live invariant or a fetch-script shape change gets
+      # caught at the keyboard instead of blocking a 5am refresh.
+      - run: npm run test:data
       - run: npm run build
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
-  # Deploys only from main, and only after tests pass — a red build never ships.
+  # Deploys only from main, and only after tests pass: a red build never ships.
   deploy:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -61,36 +80,13 @@ jobs:
       - id: deploy
         uses: actions/deploy-pages@v5
 
-  # Netlify mirrors the same build. Skipped entirely until NETLIFY_AUTH_TOKEN exists,
-  # so the workflow stays green on a fork or before the secret is added.
-  netlify:
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    # Declared at JOB level deliberately. A step's own `env:` block is not in scope
-    # for that step's `if:`, so gating on it there would skip the deploy forever —
-    # green, and silently doing nothing, even once the secret exists.
-    env:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run coverage:badge # writes public/coverage.json for the README badge
-      - run: npm run build
-      - name: Deploy
-        if: env.NETLIFY_AUTH_TOKEN != ''
-        run: npx netlify-cli@17 deploy --prod --dir dist
-      - name: Note why the deploy was skipped
-        if: env.NETLIFY_AUTH_TOKEN == ''
-        run: echo "::notice::Netlify deploy skipped — add the NETLIFY_AUTH_TOKEN repository secret to enable it."
+  # Netlify deploys via its own GitHub integration (it builds the site on every push
+  # using netlify.toml), so there is no Netlify job here. A CI-driven deploy would be a
+  # redundant second path to the same site, and it would miss the refresh bot's commits
+  # entirely: those are authored by GITHUB_TOKEN, which cannot trigger this workflow.
 
   # The data scripts use Node built-ins only, so they run on a bare checkout with no
-  # install step. This job guards that property — if someone adds an npm import to a
+  # install step. This job guards that property: if someone adds an npm import to a
   # script, the nightly refresh would break silently at 6am instead of here.
   scripts-runtime:
     runs-on: ubuntu-latest
@@ -105,4 +101,140 @@ jobs:
             echo "::error::scripts/ may only import Node built-ins (node:*) or relative paths"
             exit 1
           fi
-          echo "OK — scripts/ depends only on Node built-ins"
+          echo "OK: scripts/ depends only on Node built-ins"
+
+  # REHEARSALS. The `test` job answers "does the suite pass against today's data on
+  # today's date", which is a smaller claim than it looks: every viewer reads two moving
+  # things, a snapshot the refresh workflow rewrites twice a day and Date.now(). The two
+  # jobs below ask the questions that actually matter, at the moment a human is at the
+  # keyboard rather than at 5am on a cron.
+  #
+  # Neither is a `needs` of deploy, on purpose. Both go red on the RUN, which is the
+  # signal, but a Sunday calendar rollover or an ESPN roster hiccup must never hold a
+  # hotfix deploy hostage.
+
+  # Data-state rehearsal: fetch what the NEXT refresh would fetch and run the gate on
+  # it. This is the only check that would have caught the NFL viewer's 2026-09-06 break,
+  # when the first week-1 refresh failed on two tests asserting the player table was
+  # empty; a rehearsal two days earlier had flagged them and nothing forced the fix. Same
+  # three-way split as refresh-data.yml: a fetch that does not land is a warning, a red
+  # gate is a failure. Nothing here is ever committed.
+  refresh-rehearsal:
+    name: Gate against the next refresh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Fetch what the next refresh would fetch
+        id: fetch
+        continue-on-error: true
+        run: node scripts/fetch-schedule.mjs # TODO the same fetch command as refresh-data.yml
+      - name: Explain a fetch that did not land
+        if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::warning::could not fetch live data, so the next-refresh gate was not run. This is not a test failure."
+          echo "Fetch did not land; next-refresh gate skipped." >> "$GITHUB_STEP_SUMMARY"
+      - name: Anything to rehearse?
+        id: diff
+        if: steps.fetch.outcome == 'success'
+        run: |
+          if git diff --quiet -- src/data public/logos; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "The next refresh would change nothing; the test job's live suite already covers this state." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            { echo "### The next refresh would change"; echo '```'; git diff --stat -- src/data public/logos; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      # The SAME gate the refresh workflow runs, so a pass here means that run will pass.
+      # That gate is the live suite, not the coverage gate: the main suite reads frozen
+      # data, so fetched data cannot change its result.
+      - name: Run the gate against it
+        if: steps.diff.outputs.changed == 'true'
+        shell: bash
+        run: |
+          npm ci
+          npm run test:data
+
+  # Clock rehearsal: the suite at seven future instants with the committed data
+  # untouched. What it finds is clock rot and nothing else: a week view that opens on
+  # the calendar week containing today, an "upcoming" comparison against Date.now(), a
+  # countdown branch that goes unreachable once its fixture's tip is in the past. The
+  # tool lives in the meta repo and reads a sibling checkout beside it, so the layout
+  # here mirrors the family container on a laptop. See rehearse-clock.mjs for the why.
+  #
+  # One ladder rung per job. Run back to back, the seven coverage runs took 36 to 39
+  # minutes in the NBA viewer (about 310 s each, measured September 29, 2026), and the
+  # whole CI run and the next push waited on them. Parallel rungs finish in about the
+  # time of one. The offsets must match LADDER_DAYS in
+  # sports-viewer-meta/scripts/rehearse-clock.mjs; the family audit checks that.
+  rehearse-clock:
+    name: Rehearse the clock (+${{ matrix.days }}d)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        days: [1, 3, 8, 30, 90, 180, 365]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: the-nba-schedule # TODO this repo's folder name
+      - uses: actions/checkout@v6
+        with:
+          repository: ismayc/sports-viewer-meta
+          path: sports-viewer-meta
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: the-nba-schedule/package-lock.json # TODO folder name
+      - run: npm ci
+        working-directory: the-nba-schedule # TODO folder name
+      # `shell: bash` for the pipefail, or tee's exit status would report a red
+      # rehearsal as green.
+      - name: Rehearse
+        shell: bash
+        run: |
+          at=$(date -u -d "+${DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
+          node sports-viewer-meta/scripts/rehearse-clock.mjs --repo the-nba-schedule --at "$at" | tee rehearsal.txt # TODO folder name
+        env:
+          DAYS: ${{ matrix.days }}
+      - name: Keep the result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rehearsal-the-nba-schedule-${{ matrix.days }}d # TODO folder name
+          path: rehearsal.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Check the DEPLOYED site, which nothing else in this repo ever does: the build,
+  # the tests and the jobs above all work on local files, so a dead host, a URL
+  # pointing at a sibling's site, or a calendar feed that disagrees with the
+  # committed schedule are invisible to the entire gate. See
+  # sports-viewer-meta/docs/LINEAGES.md section 5.
+  #
+  # Never a required check: it depends on GitHub Pages and Netlify having finished
+  # publishing, and Netlify builds from its own git trigger on its own schedule, so
+  # a red run here can mean "not deployed yet" rather than "broken". It reports.
+  smoke:
+    name: Smoke-test production
+    needs: deploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      # Netlify's build is triggered by the same push but runs independently of
+      # this workflow, so give it a moment before asking it for the feed.
+      - name: Wait for the hosts to publish
+        run: sleep 60
+      # No `npm ci`: the script uses Node built-ins only.
+      - name: Check the deployed URLs and the calendar feed
+        shell: bash
+        run: node scripts/smoke-prod.mjs
