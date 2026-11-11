@@ -553,6 +553,28 @@ for (const repo of [...LIVE, TEMPLATE]) {
   }
 }
 
+// 13e. The weekly clock rehearsal covers every app, and its report job expects that many.
+//
+// The report job compares the count of result files to a hardcoded EXPECTED, and fails
+// on any mismatch. On November 8, 2026 two viewers joined the matrix (12 to 14) but
+// EXPECTED stayed 12, so the November 11 run failed with every repo clean and filed a
+// false "a viewer will go red" issue (#2).
+{
+  const yml = (() => { try { return readFileSync(join(META, '.github/workflows/rehearse-clock.yml'), 'utf8') } catch { return null } })()
+  const say = (msg) => fail(TEMPLATE, 'rehearse-matrix', `rehearse-clock.yml: ${msg}`)
+  if (!yml) say('the workflow is missing')
+  else {
+    const dirs = [...yml.matchAll(/^\s+- \{ dir: ([\w-]+),/gm)].map((m) => m[1])
+    const expected = (yml.match(/^\s+EXPECTED: '(\d+)'/m) || [])[1]
+    if (expected == null) say('no EXPECTED count in the report job')
+    else if (Number(expected) !== dirs.length) say(`EXPECTED is ${expected} but the matrix lists ${dirs.length} repos, so a clean run fails`)
+    const missing = APPS.filter((a) => !dirs.includes(a))
+    const extra = dirs.filter((d) => !APPS.includes(d))
+    if (missing.length) say(`the matrix does not rehearse ${missing.join(', ')}`)
+    if (extra.length) say(`the matrix lists ${extra.join(', ')}, which is not in APPS`)
+  }
+}
+
 // 13e. The season watch: once-ever guards, and a longer retry budget per day.
 //
 // The watch probes about 200 days per run, so one day outlasting the default

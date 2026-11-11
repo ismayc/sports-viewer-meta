@@ -53,7 +53,7 @@ jobs:
     timeout-minutes: 240
     strategy:
       # One repo per job so the sweep is ~10 minutes of wall clock instead of an hour,
-      # and so one exposed repo does not hide the state of the other eleven.
+      # and so one exposed repo does not hide the state of the others.
       fail-fast: false
       matrix:
         include:
@@ -151,7 +151,10 @@ jobs:
         id: sum
         shell: bash
         env:
-          EXPECTED: '12'
+          # Must equal the number of matrix entries above. audit-family.mjs (check 13e)
+          # fails when it does not: on November 11, 2026 a stale 12 against a 14-repo
+          # matrix failed a clean run and filed a false issue.
+          EXPECTED: '14'
         run: |
           # nullglob and an array, not `ls | wc -l`: under `bash -eo pipefail` a glob that
           # matches nothing would abort the step, and this step failing silently is the
@@ -245,7 +248,7 @@ jobs:
           3. Pin the clock for the whole FILE, not the one test: pinning test by test has
              failed twice in this family. See \`docs/PLAYBOOK.md\` §6.
 
-          A \`SKIP\` line, or a count below 12, means a repo could not be checked at all.
+          A \`SKIP\` line, or a count below the matrix size, means a repo could not be checked at all.
           That is not a pass and should be chased first.
 
           Filed by \`.github/workflows/rehearse-clock.yml\`.
