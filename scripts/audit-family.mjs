@@ -553,15 +553,16 @@ for (const repo of [...LIVE, TEMPLATE]) {
   }
 }
 
-// 13e. The weekly clock rehearsal covers every app, and its report job expects that many.
+// 13e. The weekly matrix workflows cover every app, and each report job expects that many.
 //
-// The report job compares the count of result files to a hardcoded EXPECTED, and fails
-// on any mismatch. On November 8, 2026 two viewers joined the matrix (12 to 14) but
-// EXPECTED stayed 12, so the November 11 run failed with every repo clean and filed a
-// false "a viewer will go red" issue (#2).
-{
-  const yml = (() => { try { return readFileSync(join(META, '.github/workflows/rehearse-clock.yml'), 'utf8') } catch { return null } })()
-  const say = (msg) => fail(TEMPLATE, 'rehearse-matrix', `rehearse-clock.yml: ${msg}`)
+// Each report job compares the count of result files to a hardcoded EXPECTED, and fails
+// on any mismatch. On November 8, 2026 two viewers joined the matrices but EXPECTED
+// stayed put, so the November 11 clock rehearsal (12 against 14, issue #2) and the
+// November 12 phone-width scan (13 against 14, issue #3) each failed with every repo
+// clean and filed a false issue. The first fix covered only the rehearsal.
+for (const [file, check] of [['rehearse-clock.yml', 'rehearse-matrix'], ['scan-mobile.yml', 'scan-matrix']]) {
+  const yml = (() => { try { return readFileSync(join(META, '.github/workflows', file), 'utf8') } catch { return null } })()
+  const say = (msg) => fail(TEMPLATE, check, `${file}: ${msg}`)
   if (!yml) say('the workflow is missing')
   else {
     const dirs = [...yml.matchAll(/^\s+- \{ dir: ([\w-]+),/gm)].map((m) => m[1])
@@ -570,7 +571,7 @@ for (const repo of [...LIVE, TEMPLATE]) {
     else if (Number(expected) !== dirs.length) say(`EXPECTED is ${expected} but the matrix lists ${dirs.length} repos, so a clean run fails`)
     const missing = APPS.filter((a) => !dirs.includes(a))
     const extra = dirs.filter((d) => !APPS.includes(d))
-    if (missing.length) say(`the matrix does not rehearse ${missing.join(', ')}`)
+    if (missing.length) say(`the matrix does not cover ${missing.join(', ')}`)
     if (extra.length) say(`the matrix lists ${extra.join(', ')}, which is not in APPS`)
   }
 }

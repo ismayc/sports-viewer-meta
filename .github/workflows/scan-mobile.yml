@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       # One repo per job, because each one starts its own dev server on the same port and
-      # because one faulty repo must not hide the state of the other twelve.
+      # because one faulty repo must not hide the state of the others.
       fail-fast: false
       matrix:
         include:
@@ -163,7 +163,10 @@ jobs:
         id: sum
         shell: bash
         env:
-          EXPECTED: '13'
+          # Must equal the number of matrix entries above. audit-family.mjs (check 13e)
+          # fails when it does not: on November 12, 2026 a stale 13 against a 14-repo
+          # matrix failed a clean run and filed a false issue (#3).
+          EXPECTED: '14'
         run: |
           # nullglob and an array, not `ls | wc -l`: under `bash -eo pipefail` a glob that
           # matches nothing would abort the step, and this step failing silently is the
@@ -190,7 +193,7 @@ jobs:
           fi
 
           # A repo that reported nothing at all is NOT a pass. Counting the artifacts is
-          # what separates "thirteen clean scans" from "one clean scan and twelve repos
+          # what separates "every repo scanned clean" from "one clean scan and the other repos
           # that never ran", which look identical if you only read the finding lines.
           CLEAN=true
           if [ -n "$FOUND" ] || [ -n "$NOVIEWS" ] || [ "$COUNT" -ne "$EXPECTED" ]; then
@@ -277,7 +280,7 @@ jobs:
              container. \`squeezed\` means the page scrolls sideways or an ellipsized name
              shows under 55% of itself. Fix the CSS at that width, and add the case to
              \`scripts/audit-family.mjs\` check 11 if a static rule can catch it.
-          3. An \`error\` line, a "visited 0 view(s)" line, or a count below 13 means a repo
+          3. An \`error\` line, a "visited 0 view(s)" line, or a count below the matrix size means a repo
              could not be scanned at all. That is not a pass and should be chased first.
 
           Filed by \`.github/workflows/scan-mobile.yml\`.
